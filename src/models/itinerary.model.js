@@ -6,6 +6,7 @@ const dayInfoSchema = new mongoose.Schema(
     day: { type: String, trim: true },
     locationName: { type: String, trim: true },
     locationDetail: { type: String, trim: true },
+    day_image: { type: String, trim: true },
   },
   { _id: false }
 );

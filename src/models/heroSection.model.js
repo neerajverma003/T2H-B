@@ -29,6 +29,14 @@ const heroSectionVideoSchema = new mongoose.Schema(
       type: [mediaItemSchema],
       default: [],
     },
+    heading: {
+      type: String,
+      default: "Majestic Ladakh"
+    },
+    sub_heading: {
+      type: String,
+      default: "Explore the breathtaking landscapes of Ladakh, where mountains meet the sky. A perfect getaway for adventure and peace lovers alike."
+    },
   },
   { timestamps: true }
 );

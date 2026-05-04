@@ -20,7 +20,7 @@ export const getHeroSectionVideo = async (req, res) => {
     // Get only Public items, generate presigned URLs
     const publicItems = await Promise.all(
       heroSectionData.video_url
-        .filter((item) => item.visibility === 'Public')
+        .filter((item) => item.visibility?.toLowerCase() === 'public')
         .map(async (item) => {
           const u = item.url;
           if (!u) return null;
@@ -41,6 +41,8 @@ export const getHeroSectionVideo = async (req, res) => {
       publicUrl: validItems.map((i) => i.url),
       // New: structured response with media_type
       media: validItems[0] || null, // { url, media_type }
+      heading: heroSectionData.heading,
+      sub_heading: heroSectionData.sub_heading,
     });
   } catch (error) {
     console.error("Error in getHeroSectionVideo:", error);

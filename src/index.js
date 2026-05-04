@@ -45,6 +45,7 @@ import resortRoute from './routes/t2h/resort.route.js';
 import leadsRoute from './routes/t2h/leads.routes.js';
 import testimonialRoute from './routes/t2h/testimonial.route.js';
 import subscribeRoute from './routes/t2h/subscribe.route.js';
+import userRoute from './routes/t2h/user.route.js';
 const app = express();
 
 app.use(express.json());
@@ -76,6 +77,10 @@ app.use('/leads', leadsRoute);
 app.use('/', testimonialRoute);
 // Public subscribe endpoints
 app.use('/', subscribeRoute);
+
+// User Auth endpoints
+app.use('/user', userRoute);
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

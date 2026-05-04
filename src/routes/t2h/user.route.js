@@ -1,8 +1,15 @@
-import express from 'express'
-import { sendOtp, verifyOtp } from '../../controller/user.controller.js';
-const userRouter=express.Router();
+import express from 'express';
+import { sendOtp, verifyOtp, getMe, logout } from '../../controller/user.controller.js';
+import { auth } from '../../middleware/auth.js';
 
-userRouter.post('/send-otp', sendOtp)
-userRouter.post('/verify-otp', verifyOtp)
+const userRouter = express.Router();
 
-export default userRouter
+// Public routes
+userRouter.post('/send-otp', sendOtp);
+userRouter.post('/verify-otp', verifyOtp);
+userRouter.post('/logout', logout);
+
+// Protected routes (requires valid user_token)
+userRouter.get('/me', auth, getMe);
+
+export default userRouter;

@@ -175,41 +175,84 @@ export const heroSection = async (req, res) => {
     }
 
     const storedKey = req.body.video_key || null;
-    if (!storedKey) {
-      return res.status(400).json({ success: false, msg: "Media key is required" });
-    }
-
-    // Auto-detect media_type from file extension
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
-    const ext = storedKey.split('.').pop()?.toLowerCase();
-    const media_type = imageExtensions.includes(`.${ext}`) ? 'image' : 'video';
-
+    
     const formattedTitle = formatCountryName(title);
     const formattedVisibility = formatCountryName(visibility);
 
-    const newMediaItem = {
-      url: storedKey,
-      media_type,
-      visibility: formattedVisibility,
-    };
+    const heading = req.body?.heading || "Majestic Ladakh";
+    const sub_heading = req.body?.sub_heading || "Explore the breathtaking landscapes of Ladakh, where mountains meet the sky.";
 
-    // Always REPLACE — only 1 media item per page at a time
+    // Always find existing doc first
     let heroDoc = await heroSectionVideoModel.findOne({ title: formattedTitle });
 
-    if (heroDoc) {
-      heroDoc.video_url = [newMediaItem];
+    // IF NEW MEDIA IS PROVIDED
+    if (storedKey) {
+      // Auto-detect media_type from file extension
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
+      const ext = storedKey.split('.').pop()?.toLowerCase();
+      const media_type = imageExtensions.includes(`.${ext}`) ? 'image' : 'video';
+
+      const newMediaItem = {
+        url: storedKey,
+        media_type,
+        visibility: formattedVisibility,
+      };
+
+      if (heroDoc) {
+        heroDoc.video_url = [newMediaItem];
+        heroDoc.heading = heading;
+        heroDoc.sub_heading = sub_heading;
+        await heroDoc.save();
+        return res.status(200).json({
+          success: true,
+          msg: `Hero ${media_type} and text updated successfully`,
+          media_type,
+        });
+      }
+
+      // Create new document if none exists
+      heroDoc = new heroSectionVideoModel({
+        title: formattedTitle,
+        video_url: [newMediaItem],
+        heading,
+        sub_heading,
+      });
       await heroDoc.save();
+
       return res.status(200).json({
         success: true,
-        msg: `Hero ${media_type} replaced successfully`,
+        msg: `Hero ${media_type} uploaded successfully`,
         media_type,
       });
     }
+
+    // IF NO MEDIA PROVIDED - JUST UPDATE TEXT AND VISIBILITY
+    if (heroDoc) {
+      heroDoc.heading = heading;
+      heroDoc.sub_heading = sub_heading;
+      // Also update visibility for existing media items if they exist
+      if (heroDoc.video_url && heroDoc.video_url.length > 0) {
+        heroDoc.video_url[0].visibility = formattedVisibility;
+      }
+      await heroDoc.save();
+      return res.status(200).json({
+        success: true,
+        msg: "Hero text updated successfully",
+      });
+    }
+
+    // If no media provided AND no doc exists
+    return res.status(400).json({ 
+      success: false, 
+      msg: "No hero section found for this page. Please upload an image or video first." 
+    });
 
     // Create new document
     heroDoc = new heroSectionVideoModel({
       title: formattedTitle,
       video_url: [newMediaItem],
+      heading,
+      sub_heading,
     });
     await heroDoc.save();
 
@@ -247,6 +290,8 @@ export const getAllHeroVideo = async (req, res) => {
       // Return the single media item (first in array) with its type
       data: items,
       current: items[0] || null, // convenience: the active media
+      heading: processedData?.heading || "Majestic Ladakh",
+      sub_heading: processedData?.sub_heading || "Explore the breathtaking landscapes of Ladakh, where mountains meet the sky.",
     });
   } catch (error) {
     console.error("Get Hero Video Error:", error);

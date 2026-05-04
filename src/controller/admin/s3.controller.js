@@ -31,8 +31,8 @@ export const generatePresignedUrl = async (req, res) => {
     // The URL expires in 5 minutes
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
-    // Public URL format for S3 objects
-    const publicUrl = `https://${ENV.AWS_S3_BUCKET_NAME}.s3.${ENV.AWS_REGION}.amazonaws.com/${key}`;
+    // Public URL format using CloudFront CDN
+    const publicUrl = `https://media.trip2honeymoon.com/${key}`;
 
     return res.status(200).json({
       success: true,
@@ -48,21 +48,11 @@ export const generatePresignedUrl = async (req, res) => {
 
 export const getPresignedViewUrl = async (key) => {
   if (!key) return null;
-  // If it's a full URL (legacy test data, cloudinary, etc.), just return it or ignore it per user request
+  // If it's a full URL (legacy test data, cloudinary, etc.), just return it
   if (key.startsWith('http')) return key;
 
-  try {
-    const command = new GetObjectCommand({
-      Bucket: ENV.AWS_S3_BUCKET_NAME,
-      Key: key,
-    });
-    // 5 Hours = 18000 seconds
-    const url = await getSignedUrl(s3Client, command, { expiresIn: 18000 });
-    return url;
-  } catch (err) {
-    console.error(`S3 Signed URL Error for key [${key}]:`, err.message);
-    return null; // Return null so frontend shows placeholder instead of broken icon
-  }
+  // View: User → CloudFront CDN
+  return `https://media.trip2honeymoon.com/${key}`;
 };
 
 /**

@@ -21,6 +21,12 @@ const DestinationInternationAndDomesticSchema = new mongoose.Schema(
     destination_type: {
       type: [String],
       required: true,
+    },
+    best_time: {
+      type: String,
+    },
+    ideal_duration: {
+      type: String,
     }
     
 

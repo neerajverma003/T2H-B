@@ -18,6 +18,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
   : [
       'http://localhost:5173', // frontend (Vite)
+      'http://localhost:5174', // frontend (alternative Vite port)
       'http://localhost:3000', // optional
       // 👇 Add your production domains here OR set ALLOWED_ORIGINS env variable
       // 'https://triptohoneymoon.com',

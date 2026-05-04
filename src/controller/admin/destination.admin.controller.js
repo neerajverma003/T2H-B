@@ -38,7 +38,7 @@ export const destination_Internation_Or_Domestic = async (req, res) => {
 // Adding new destination
 export const addDestination_Domestic_Internationl = async (req, res) => {
   try {
-    const { destination_name, type, destination_type, title_image } = req.body;
+    const { destination_name, type, destination_type, title_image, best_time, ideal_duration } = req.body;
     // title_image should now be an array of S3 public URLs sent from frontend
     const titleImages = Array.isArray(title_image) ? title_image : (title_image ? [title_image] : []);
 
@@ -60,6 +60,8 @@ export const addDestination_Domestic_Internationl = async (req, res) => {
       title_image: titleImages,
       show_image: titleImages,
       destination_type: Array.isArray(destination_type) ? destination_type : [destination_type],
+      best_time: best_time || "",
+      ideal_duration: ideal_duration || "",
     });
 
     await newDestination.save();
@@ -137,7 +139,7 @@ export const getSingleDestinationBYId = async (req, res) => {
 // Update destination
 export const updateDestination_Domestic_Internationl = async (req, res) => {
   const { id } = req.params;
-  const { destination_name, type, destination_type, show_image } = req.body;
+  const { destination_name, type, destination_type, show_image, best_time, ideal_duration } = req.body;
 
   try {
     if (!id) {
@@ -190,6 +192,14 @@ export const updateDestination_Domestic_Internationl = async (req, res) => {
       destination.destination_type = Array.isArray(destination_type)
         ? destination_type
         : [destination_type];
+    }
+    
+    // Update new quick facts
+    if (best_time !== undefined) {
+      destination.best_time = best_time;
+    }
+    if (ideal_duration !== undefined) {
+      destination.ideal_duration = ideal_duration;
     }
 
     await destination.save();
