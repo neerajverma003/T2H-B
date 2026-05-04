@@ -32,7 +32,7 @@ export const generatePresignedUrl = async (req, res) => {
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
     // Public URL format using CloudFront CDN
-    const publicUrl = `https://media.trip2honeymoon.com/${key}`;
+    const publicUrl = `${ENV.AWS_CLOUDFRONT_URL}/${key}`;
 
     return res.status(200).json({
       success: true,
@@ -52,7 +52,7 @@ export const getPresignedViewUrl = async (key) => {
   if (key.startsWith('http')) return key;
 
   // View: User → CloudFront CDN
-  return `https://media.trip2honeymoon.com/${key}`;
+  return `${ENV.AWS_CLOUDFRONT_URL}/${key}`;
 };
 
 /**

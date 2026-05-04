@@ -28,6 +28,18 @@ export const processItineraryImages = async (itineraries) => {
       if (itObj.destination_video && !itObj.destination_video.startsWith('http')) {
         itObj.destination_video = await getPresignedViewUrl(itObj.destination_video);
       }
+
+      // Process Days Information Images
+      if (itObj.days_information && Array.isArray(itObj.days_information)) {
+        itObj.days_information = await Promise.all(
+          itObj.days_information.map(async (day) => {
+            if (day.day_image && !day.day_image.startsWith('http')) {
+              return { ...day, day_image: await getPresignedViewUrl(day.day_image) };
+            }
+            return day;
+          })
+        );
+      }
       
       return itObj;
     })
@@ -152,7 +164,9 @@ export const createItinerary = async (req, res) => {
       itinerary_type,
       cancellation_policy,
       classification: parsedClassification,
-      days_information: parsedDaysInformation,
+      days_information: Array.isArray(parsedDaysInformation)
+        ? parsedDaysInformation.map(day => ({ ...day, day_image: extractS3Key(day.day_image) }))
+        : parsedDaysInformation,
       destination_detail: parsedDestinationDetail,
       // Merge any JSON-provided images with actual uploaded file paths (uploaded files take precedence appended at end)
       destination_images: [
@@ -357,7 +371,9 @@ export const updateItinerary = async (req, res) => {
       itinerary_type,
       cancellation_policy,
       classification: parsedClassification,
-      days_information: parsedDaysInformation,
+      days_information: Array.isArray(parsedDaysInformation) 
+        ? parsedDaysInformation.map(day => ({ ...day, day_image: extractS3Key(day.day_image) }))
+        : parsedDaysInformation,
       destination_detail: parsedDestinationDetail,
       destination_images: [
         ...(Array.isArray(parsedDestinationImages) ? parsedDestinationImages.map((image) => extractS3Key(image?.url || image)) : []),
