@@ -1,5 +1,6 @@
 import itineraryModel from '../../models/itinerary.model.js';
 import { getPresignedViewUrl, extractS3Key } from './s3.controller.js';
+import { logActivity } from '../../utils/auditLogger.js';
 
 // Helper: Convert stored S3 keys to 5-hour Presigned GET URLs for Itineraries
 export const processItineraryImages = async (itineraries) => {
@@ -192,6 +193,16 @@ export const createItinerary = async (req, res) => {
     const savedItinerary = await newItinerary.save();
 
     const [processedItinerary] = await processItineraryImages([savedItinerary]);
+
+    // Log the activity
+    await logActivity({
+      adminId: req.userId,
+      action: 'CREATE',
+      module: 'ITINERARY',
+      details: `Created new itinerary: ${title}`,
+      targetId: savedItinerary._id,
+      ipAddress: req.ip
+    });
 
     return res.status(201).json({
       success: true,
@@ -410,6 +421,16 @@ export const updateItinerary = async (req, res) => {
     }
 
     const [processed] = await processItineraryImages([updatedItinerary]);
+
+    // Log the activity
+    await logActivity({
+      adminId: req.userId,
+      action: 'UPDATE',
+      module: 'ITINERARY',
+      details: `Updated itinerary: ${title}`,
+      targetId: updatedItinerary._id,
+      ipAddress: req.ip
+    });
 
     return res.status(200).json({
       success: true,

@@ -215,6 +215,8 @@ adminRoute.delete('/resort/delete/:id', auth, authorizeAdmin, deleteResort);
 // Settings & Reports
 adminRoute.get('/global-settings', getGlobalSettings); // Publicly accessible for frontend footer
 adminRoute.put('/global-settings', auth, authorizeAdmin, updateGlobalSettings);
+import { getAuditLogs } from '../../controller/admin/auditLog.admin.controller.js';
+adminRoute.get('/audit-logs', auth, authorizeAdmin, getAuditLogs);
 adminRoute.get('/reports/stats', auth, authorizeAdmin, getDashboardStats);
 
 export default adminRoute;

@@ -4,6 +4,7 @@ import imageGalleryModel from '../../models/imageGallery.model.js';
 import { formatCountryName } from '../../utils.js';
 import { getPresignedViewUrl, extractS3Key } from './s3.controller.js';
 import { processDestinationImages } from '../destination.controller.js';
+import { logActivity } from '../../utils/auditLogger.js';
 
 // For sending name of place according to their type "Domestic/International"
 export const destination_Internation_Or_Domestic = async (req, res) => {
@@ -65,6 +66,16 @@ export const addDestination_Domestic_Internationl = async (req, res) => {
     });
 
     await newDestination.save();
+
+    // Log the activity
+    await logActivity({
+      adminId: req.userId,
+      action: 'CREATE',
+      module: 'DESTINATION',
+      details: `Added new destination: ${destination_name}`,
+      targetId: newDestination._id,
+      ipAddress: req.ip
+    });
 
     // ✅ SYNC to imageGalleryModel so View Image Gallery can see the images
     console.log("Syncing new destination images to imageGalleryModel...");
@@ -203,6 +214,16 @@ export const updateDestination_Domestic_Internationl = async (req, res) => {
     }
 
     await destination.save();
+
+    // Log the activity
+    await logActivity({
+      adminId: req.userId,
+      action: 'UPDATE',
+      module: 'DESTINATION',
+      details: `Updated destination: ${destination_name || destination.destination_name}`,
+      targetId: destination._id,
+      ipAddress: req.ip
+    });
 
     // ✅ SYNC to imageGalleryModel so View Image Gallery can see the images
     console.log("Syncing destination images to imageGalleryModel...");

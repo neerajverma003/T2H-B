@@ -87,18 +87,18 @@ export const AdminUserCreate = async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({ msg: 'All fields are required', success: false });
     }
-    const isUserExist = await UserModel.findOne({ username });
+    const isUserExist = await AdminModel.findOne({ username });
     if (isUserExist) {
-      return res.status(309).json({ msg: 'User Already Exist', success: false });
+      return res.status(400).json({ msg: 'User Already Exists', success: false });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new UserModel({
+    const newUser = new AdminModel({
       username,
       password: hashedPassword,
       role: 'admin',
     });
     await newUser.save();
-    return res.status(200).json({ msg: 'user created successfull', success: true });
+    return res.status(200).json({ msg: 'Administrative user created successfully', success: true });
   } catch (error) {
     console.error(`itinerary Admin user create -> ${error}`);
     return res.status(500).json({ msg: 'Server Error', success: false });
@@ -108,7 +108,7 @@ export const AdminUserCreate = async (req, res) => {
 
 export const userExistedInAdmin = async (req, res) => {
   try {
-    const adminUser = await UserModel.find({ _id: { $ne: req.userId } }).sort({ createdAt: -1 });
+    const adminUser = await AdminModel.find({}).sort({ createdAt: -1 });
     if (!adminUser) {
       return res.status(401).json({ msg: 'no othre user Exists', success: false });
     }

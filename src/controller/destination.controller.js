@@ -292,8 +292,8 @@ export const getItineraryByDestinationId = async (req, res) => {
     });
     if (!itineraries || itineraries.length === 0) {
       return res
-        .status(404)
-        .json({ success: false, message: 'No itineraries found for this destination' });
+        .status(200)
+        .json({ success: true, data: [], message: 'No itineraries found for this destination' });
     }
     
     const processed = await processItineraryImages(itineraries);
