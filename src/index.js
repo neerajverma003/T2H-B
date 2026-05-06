@@ -75,7 +75,7 @@ app.use('/user', userRoute);
 /**
  * SERVER LIFECYCLE
  */
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 2000;
 app.listen(PORT, () => {
   console.log(`[SYSTEM] Server active on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });
