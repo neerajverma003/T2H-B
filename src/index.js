@@ -1,9 +1,13 @@
 import express from "express";
 import path from 'path';
 import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import { corsOptions } from "./config/corsOption.js";
 import connectDB from "./config/db.js";
+import { errorHandler, notFound } from "./middleware/errorHandler.js";
 
 // Import Route Handlers
 import adminRoute from "./routes/adminRoutes/admin.route.js";
@@ -19,11 +23,22 @@ import userRoute from './routes/t2h/user.route.js';
 const app = express();
 
 /**
- * MIDDLEWARE CONFIGURATION
- * ------------------------
- * 1. Body Parser: Increased to 50MB for large text fields and content.
- * 2. Cookie Parser: For handling authentication tokens.
- * 3. CORS: Controlled via whitelist in ./config/corsOption.js
+ * SECURITY & PERFORMANCE MIDDLEWARE
+ * --------------------------------
+ * 1. Helmet: Sets various HTTP headers for security.
+ * 2. Compression: Gzip compression for all responses.
+ * 3. Morgan: Request logging for audit trails.
+ */
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow images/media from S3
+  contentSecurityPolicy: false // Disabled for ease of integration with external scripts/CDNs
+}));
+app.use(compression());
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+/**
+ * BODY PARSING & AUTH
+ * -------------------
  */
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -52,15 +67,13 @@ app.get("/", (req, res) => {
   res.json({ 
     status: "Backend is operational 🚀", 
     environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
   });
 });
 
 /**
  * API ROUTE REGISTRY
- * ------------------
- * Note: '/admin' routes are protected and require superadmin privileges.
- * Public routes (blog, destination, etc.) are available for the main website.
  */
 app.use("/admin", adminRoute);
 app.use('/blog', blogRoute);
@@ -71,6 +84,14 @@ app.use('/leads', leadsRoute);
 app.use('/', testimonialRoute);
 app.use('/', subscribeRoute);
 app.use('/user', userRoute);
+
+/**
+ * ERROR HANDLING
+ * --------------
+ * Must be placed AFTER all routes.
+ */
+app.use(notFound);
+app.use(errorHandler);
 
 /**
  * SERVER LIFECYCLE

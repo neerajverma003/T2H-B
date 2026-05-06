@@ -1,52 +1,34 @@
-// import allowedOrigin from './allowedOrigin.js';
-// export const corsOptions = {
-//   origin: function (origin, callback) {
-//     if (!origin || allowedOrigins.includes(origin)) {
-//       callback(null, true);
-//     } else {
-//       callback(new Error('Not allowed by CORS'));
-//     }
-//   },
-//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-//   allowedHeaders: ['Content-Type', 'Authorization'],
-//   credentials: true,
-// };
-// src/config/corsOption.js
-
-// Allow override via environment variable (comma-separated), otherwise default local dev origins
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : [
-      'http://localhost:5173', // frontend (Vite)
-      'http://localhost:5174', // frontend (alternative Vite port)
-      'http://localhost:3000', // optional
-      // 👇 Add your production domains here OR set ALLOWED_ORIGINS env variable
-      // 'https://triptohoneymoon.com',
-      // 'https://admin.triptohoneymoon.com',
-    ];
+import allowedOrigins from './allowedOrigin.js';
 
 export const corsOptions = {
   origin: (origin, callback) => {
-    // allow requests with no origin (like Postman or curl)
+    // 1. Allow requests with no origin (Postman, curl, server-to-server)
     if (!origin) return callback(null, true);
 
-    // Normalize origin (strip trailing slash) for comparison
+    // 2. Normalize origin (strip trailing slash)
     const normalizedOrigin = origin.replace(/\/$/, '');
 
-    // In non-production allow any origin (convenience for local/dev)
-    if ((process.env.NODE_ENV || 'development') !== 'production') return callback(null, true);
+    // 3. DEVELOPMENT BYPASS
+    // In non-production, allow all origins for developer convenience
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      return callback(null, true);
+    }
 
-    // Allow explicit configured origins
-    const allowed = allowedOrigins.map(o => o.replace(/\/$/, ''));
-    if (allowed.includes(normalizedOrigin)) return callback(null, true);
+    // 4. PRODUCTION WHITELIST
+    // Check against explicit allowedOrigins array
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      return callback(null, true);
+    }
 
-    // Allow localhost/127.0.0.1 automatically (covers Vite dev server variants)
+    // 5. LOCALHOST FALLBACK (Safety)
     if (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1')) {
       return callback(null, true);
     }
 
-    // Allow all if explicitly requested via env
-    if (process.env.ALLOW_ALL_ORIGINS === 'true') return callback(null, true);
+    // 6. DYNAMIC OVERRIDE (Env Variable)
+    if (process.env.ALLOW_ALL_ORIGINS === 'true') {
+      return callback(null, true);
+    }
 
     console.warn('[CORS] Blocked origin:', origin);
     return callback(new Error('Not allowed by CORS'));
