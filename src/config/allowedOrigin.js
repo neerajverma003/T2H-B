@@ -1,5 +1,6 @@
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://localhost:2000',
   'http://localhost:3000',
   'http://localhost:3001',
@@ -10,8 +11,7 @@ const allowedOrigins = [
   'http://trip2honeymoon.com',
   'https://trip2honeymoon.com',
   'http://www.trip2honeymoon.com',
-  'https://www.trip2honeymoon.com',
-  'http://admin.trip2honeymoon.com',
-  'https://admin.trip2honeymoon.com',
-];
+  'https://www.trip2honeymoon.com'
+
+]
 export default allowedOrigins;
