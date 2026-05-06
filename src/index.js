@@ -1,42 +1,11 @@
-// import express from 'express';
-// import cors from 'cors';
-// import cookieParser from 'cookie-parser';
-
-// import { ENV } from './config/ENV.js';
-// import connectDB from './config/db.js';
-// import { corsOptions } from './config/corsOption.js';
-// import adminRoute from './routes/adminRoutes/admin.route.js';
-
-// const app = express();
-
-// app.use(cookieParser());
-// app.use(cors(corsOptions));
-// // Increase JSON body limit to 50MB to support large text field submissions (e.g., 50,000 char limits × multiple fields)
-// app.use(express.json({ limit: '50mb' }));
-// app.use(express.json());
-// app.use(express.urlencoded({ extended: true }));
-// // Connect to database
-// connectDB();
-
-// app.get('/', (req, res) => {
-//   res.json({ status: 'API is working', version: '1.0' });
-// });
-
-// // Admin routes
-// app.use('/admin', adminRoute);
-
-
-// app.listen(ENV.PORT, () => {
-//   console.log(`Server is running on port ${ENV.PORT} ✅`);
-// });
-
-
 import express from "express";
 import path from 'path';
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { corsOptions } from "./config/corsOption.js";
 import connectDB from "./config/db.js";
+
+// Import Route Handlers
 import adminRoute from "./routes/adminRoutes/admin.route.js";
 import blogRoute from './routes/t2h/blog.route.js';
 import heroSectionRoute from './routes/t2h/heroSection.route.js';
@@ -46,42 +15,67 @@ import leadsRoute from './routes/t2h/leads.routes.js';
 import testimonialRoute from './routes/t2h/testimonial.route.js';
 import subscribeRoute from './routes/t2h/subscribe.route.js';
 import userRoute from './routes/t2h/user.route.js';
+
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+/**
+ * MIDDLEWARE CONFIGURATION
+ * ------------------------
+ * 1. Body Parser: Increased to 50MB for large text fields and content.
+ * 2. Cookie Parser: For handling authentication tokens.
+ * 3. CORS: Controlled via whitelist in ./config/corsOption.js
+ */
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 app.use(cors(corsOptions));
 
-// Serve local uploads directory as fallback
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+/**
+ * STATIC ASSET FALLBACK
+ * ---------------------
+ * Local storage is only used in development. 
+ * Production environments strictly use AWS S3/CloudFront.
+ */
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+}
 
-
+/**
+ * DATABASE INITIALIZATION
+ */
 connectDB();
 
+/**
+ * SYSTEM HEALTH CHECK
+ */
 app.get("/", (req, res) => {
-  res.send("Backend is running 🚀");
+  res.json({ 
+    status: "Backend is operational 🚀", 
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
-app.use("/admin", adminRoute);
-// Public blog endpoints (no auth)
-app.use('/blog', blogRoute);
-// Public hero-section endpoints
-app.use('/', heroSectionRoute);
-// Public destination endpoints
-app.use('/destination', destinationRoute);
-// Public resort endpoints
-app.use('/resort', resortRoute);
-// Public leads endpoints (plan your trip, contact, etc.)
-app.use('/leads', leadsRoute);
-// Public testimonial endpoints
-app.use('/', testimonialRoute);
-// Public subscribe endpoints
-app.use('/', subscribeRoute);
 
-// User Auth endpoints
+/**
+ * API ROUTE REGISTRY
+ * ------------------
+ * Note: '/admin' routes are protected and require superadmin privileges.
+ * Public routes (blog, destination, etc.) are available for the main website.
+ */
+app.use("/admin", adminRoute);
+app.use('/blog', blogRoute);
+app.use('/', heroSectionRoute);
+app.use('/destination', destinationRoute);
+app.use('/resort', resortRoute);
+app.use('/leads', leadsRoute);
+app.use('/', testimonialRoute);
+app.use('/', subscribeRoute);
 app.use('/user', userRoute);
 
+/**
+ * SERVER LIFECYCLE
+ */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`[SYSTEM] Server active on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });
