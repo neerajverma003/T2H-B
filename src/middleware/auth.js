@@ -26,11 +26,23 @@ export const auth = async (req, res, next) => {
     return res.status(500).json({ msg: 'Server Error', success: false });
   }
 };
-export const  authorizeAdmin = (req, res, next) => {
-  console.log(req.userRole);
-  
-  if (req.userRole !== 'admin') {
-    return res.status(403).json({ msg: 'Access denied. Admins only.', success: false });
-  }
-  next();
+// Flexible role-based authorization
+export const authorize = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.userRole) {
+      return res.status(401).json({ msg: 'Unauthorized: No role assigned', success: false });
+    }
+
+    if (!allowedRoles.includes(req.userRole)) {
+      return res.status(403).json({ 
+        msg: `Access denied. Requires one of the following roles: ${allowedRoles.join(', ')}`, 
+        success: false 
+      });
+    }
+    next();
+  };
 };
+
+// Legacy support if needed, but we'll transition to 'authorize'
+export const authorizeAdmin = authorize(['superadmin', 'admin']);
+export const authorizeSuperadmin = authorize(['superadmin']);

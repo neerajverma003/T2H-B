@@ -68,6 +68,18 @@ export const getTextTestimonials = async (req, res) => {
   }
 };
 
+// Fetch only verified text testimonials (for public frontend)
+export const getActiveTextTestimonials = async (req, res) => {
+  try {
+    const testimonials = await textTestimonialModel.find({ toShow: true }).sort({ createdAt: -1 });
+    const processed = await processTextTestimonialImages(testimonials);
+    return res.status(200).json({ success: true, data: processed });
+  } catch (error) {
+    console.error('Error fetching active testimonials:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+
 // Toggle the `toShow` / verification flag for a testimonial
 export const toggleVerifyTestimonial = async (req, res) => {
   try {

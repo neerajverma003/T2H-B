@@ -241,6 +241,7 @@ export const domesticAndInternationForHome = async (req, res) => {
 
 // Get only Domestic Destination
 export const getOnlyDomesticDestinationOrInternational = async (req, res) => {
+  console.log("inside the domestic controller mohit")
   const { type } = req.params;
   try {
     const destinations = await DestinationInternationAndDomesticModel.find({

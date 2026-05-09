@@ -22,11 +22,12 @@ export const AdminUserVerify = async (req, res) => {
     const token = generateToeknAdmin(isUserExists._id, isUserExists.role);
     // console.log(token);
     
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production' ? true : false, // only true in production
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: isProduction,           // HTTPS only in production
+      sameSite: isProduction ? 'none' : 'lax', // 'none' required for cross-subdomain in prod
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
     return res.status(200).json({
@@ -95,7 +96,7 @@ export const AdminUserCreate = async (req, res) => {
     const newUser = new AdminModel({
       username,
       password: hashedPassword,
-      role: 'admin',
+      role: req.body.role || 'admin', // Allow specifying role
     });
     await newUser.save();
     return res.status(200).json({ msg: 'Administrative user created successfully', success: true });
@@ -123,12 +124,18 @@ export const userExistedInAdmin = async (req, res) => {
 // create /me controlller
 export const getMe = async (req, res) => {
   try {
-    const { userId, userRole } = req;
+    const { userId } = req;
+
+    // Fetch fresh user data from DB to prevent stale JWT roles
+    const user = await AdminModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, msg: 'User not found' });
+    }
 
     return res.status(200).json({
       success: true,
-      userId,
-      role: userRole,
+      userId: user.username, // Send username mapped to userId for frontend compatibility
+      role: user.role,       // Send the fresh role from the database
       msg: 'User authenticated',
     });
   } catch (err) {
@@ -139,10 +146,11 @@ export const getMe = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
     res.clearCookie('token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
     });
 
     return res.status(200).json({ msg: 'Logout successful', success: true });
@@ -164,8 +172,8 @@ export const deleteUser = async (req, res) => {
         .status(404)
         .json({ msg: 'User Which u wanted to delete does not exists', success: false });
     }
-    if (userData.role === 'admin') {
-      return res.status(403).json({ msg: 'You cannnot delete Admin itself', success: false });
+    if (userData.role === 'superadmin') {
+      return res.status(403).json({ msg: 'You cannot delete a Superadmin account', success: false });
     }
     await AdminModel.findOneAndDelete({ _id: userId });
     return res.status(200).json({ msg: 'User Deleted Successfully', success: true });

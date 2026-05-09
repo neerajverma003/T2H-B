@@ -52,12 +52,12 @@ export const getHeroSectionVideo = async (req, res) => {
 
 
 
-export const getAllVideo=async(req,res)=>{
+export const getAllVideo = async (req, res) => {
   try {
     const allVideo = await heroSectionVideoModel.find({});
-    return res.status(200).json({msg:"Successfully fetched all videos", success:true, data:allVideo});
+    return res.status(200).json({ msg: "Successfully fetched all videos", success: true, data: allVideo });
   } catch (error) {
     console.log(error)
-    return res.status(500).json({msg:"Internal Server Error", success:false});
+    return res.status(500).json({ msg: "Internal Server Error", success: false });
   }
 }

@@ -8,7 +8,7 @@ export const processItineraryImages = async (itineraries) => {
   return await Promise.all(
     itinerariesArray.map(async (itinerary) => {
       const itObj = itinerary.toObject ? itinerary.toObject() : itinerary;
-      
+
       // Process main images
       if (itObj.destination_images && Array.isArray(itObj.destination_images)) {
         const signed = await Promise.all(
@@ -16,7 +16,7 @@ export const processItineraryImages = async (itineraries) => {
         );
         itObj.destination_images = signed.filter(u => u !== null);
       }
-      
+
       // Process thumbnails
       if (itObj.destination_thumbnails && Array.isArray(itObj.destination_thumbnails)) {
         const signed = await Promise.all(
@@ -24,7 +24,7 @@ export const processItineraryImages = async (itineraries) => {
         );
         itObj.destination_thumbnails = signed.filter(u => u !== null);
       }
-      
+
       // Process video
       if (itObj.destination_video && !itObj.destination_video.startsWith('http')) {
         itObj.destination_video = await getPresignedViewUrl(itObj.destination_video);
@@ -42,6 +42,18 @@ export const processItineraryImages = async (itineraries) => {
         );
       }
       
+      // Process Reviews Profile Images
+      if (itObj.reviews && Array.isArray(itObj.reviews)) {
+        itObj.reviews = await Promise.all(
+          itObj.reviews.map(async (rev) => {
+            if (rev.profileImage && !rev.profileImage.startsWith('http')) {
+              return { ...rev, profileImage: await getPresignedViewUrl(rev.profileImage) };
+            }
+            return rev;
+          })
+        );
+      }
+
       return itObj;
     })
   );
@@ -97,6 +109,7 @@ export const createItinerary = async (req, res) => {
       pricing,
       selected_destination_id,
       terms_and_conditions,
+      reviews,
     } = req.body;
 
     const parsedClassification = parseJSON(classification);
@@ -105,8 +118,9 @@ export const createItinerary = async (req, res) => {
     // Parse gallery S3 Keys from the body
     const parsedDestinationImages = parseJSON(destination_images) || [];
     const parsedDestinationThumbnails = parseJSON(destination_thumbnails) || [];
+    const parsedReviews = parseJSON(reviews);
 
-    const uploadedDestinationImages = []; 
+    const uploadedDestinationImages = [];
     const uploadedDestinationThumbnails = [];
     const parsedItineraryTheme = parseJSON(itinerary_theme);
     const parsedPricing = parseJSON(pricing);
@@ -114,8 +128,8 @@ export const createItinerary = async (req, res) => {
     // Validate pricing format
     let finalPricing;
     if (typeof parsedPricing === 'string') {
-      if (parsedPricing.trim() === '') {
-        finalPricing = 'As per the destination';
+      if (parsedPricing.trim() === '' || parsedPricing === 'As per best quote') {
+        finalPricing = { is_price_on_request: true };
       } else if (parsedPricing !== 'As per the destination') {
         return res.status(400).json({
           success: false,
@@ -127,15 +141,15 @@ export const createItinerary = async (req, res) => {
     } else if (
       typeof parsedPricing === 'object' &&
       parsedPricing !== null &&
-      typeof parsedPricing.standard_price === 'number' &&
-      typeof parsedPricing.discounted_price === 'number'
+      (parsedPricing.is_price_on_request === true ||
+        (typeof parsedPricing.standard_price === 'number' && typeof parsedPricing.discounted_price === 'number'))
     ) {
       finalPricing = parsedPricing;
     } else {
       return res.status(400).json({
         success: false,
         message:
-          'Invalid pricing object. Must contain standard_price and discounted_price as numbers.',
+          'Invalid pricing object. Must contain is_price_on_request or standard_price/discounted_price.',
       });
     }
 
@@ -188,6 +202,9 @@ export const createItinerary = async (req, res) => {
       pricing: finalPricing,
       selected_destination: selected_destination_id,
       terms_and_conditions,
+      reviews: Array.isArray(parsedReviews)
+        ? parsedReviews.map(rev => ({ ...rev, profileImage: extractS3Key(rev.profileImage) }))
+        : [],
     });
 
     const savedItinerary = await newItinerary.save();
@@ -330,6 +347,7 @@ export const updateItinerary = async (req, res) => {
       pricing,
       selected_destination_id,
       terms_and_conditions,
+      reviews,
     } = req.body;
 
     // --- Parse inputs the same way as creation ---
@@ -340,12 +358,18 @@ export const updateItinerary = async (req, res) => {
     const parsedDestinationThumbnails = parseJSON(destination_thumbnails);
     const parsedItineraryTheme = parseJSON(itinerary_theme);
     const parsedPricing = parseJSON(pricing);
+    const parsedReviews = parseJSON(reviews);
+
+    console.log('--- DEBUG PRICING ---');
+    console.log('pricing from body:', pricing);
+    console.log('parsedPricing:', parsedPricing);
+    console.log('type of parsedPricing:', typeof parsedPricing);
 
     // --- Validate pricing ---
     let finalPricing;
     if (typeof parsedPricing === 'string') {
-      if (parsedPricing.trim() === '') {
-        finalPricing = 'As per the destination';
+      if (parsedPricing.trim() === '' || parsedPricing === 'As per best quote') {
+        finalPricing = { is_price_on_request: true };
       } else if (parsedPricing !== 'As per the destination') {
         return res.status(400).json({
           success: false,
@@ -357,15 +381,15 @@ export const updateItinerary = async (req, res) => {
     } else if (
       typeof parsedPricing === 'object' &&
       parsedPricing !== null &&
-      typeof parsedPricing.standard_price === 'number' &&
-      typeof parsedPricing.discounted_price === 'number'
+      (parsedPricing.is_price_on_request === true ||
+        (typeof parsedPricing.standard_price === 'number' && typeof parsedPricing.discounted_price === 'number'))
     ) {
       finalPricing = parsedPricing;
     } else {
       return res.status(400).json({
         success: false,
         message:
-          'Invalid pricing object. Must contain standard_price and discounted_price as numbers.',
+          'Invalid pricing object. Must contain is_price_on_request or standard_price/discounted_price.',
       });
     }
 
@@ -382,7 +406,7 @@ export const updateItinerary = async (req, res) => {
       itinerary_type,
       cancellation_policy,
       classification: parsedClassification,
-      days_information: Array.isArray(parsedDaysInformation) 
+      days_information: Array.isArray(parsedDaysInformation)
         ? parsedDaysInformation.map(day => ({ ...day, day_image: extractS3Key(day.day_image) }))
         : parsedDaysInformation,
       destination_detail: parsedDestinationDetail,
@@ -403,6 +427,9 @@ export const updateItinerary = async (req, res) => {
       pricing: finalPricing,
       selected_destination: selected_destination_id,
       terms_and_conditions,
+      reviews: Array.isArray(parsedReviews)
+        ? parsedReviews.map(rev => ({ ...rev, profileImage: extractS3Key(rev.profileImage) }))
+        : [],
     };
 
     if (videoPath) {

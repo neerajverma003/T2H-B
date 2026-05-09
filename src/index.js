@@ -19,6 +19,7 @@ import leadsRoute from './routes/t2h/leads.routes.js';
 import testimonialRoute from './routes/t2h/testimonial.route.js';
 import subscribeRoute from './routes/t2h/subscribe.route.js';
 import userRoute from './routes/t2h/user.route.js';
+import itineraryLeadRoute from './routes/t2h/itineraryLead.route.js';
 
 const app = express();
 
@@ -64,8 +65,8 @@ connectDB();
  * SYSTEM HEALTH CHECK
  */
 app.get("/", (req, res) => {
-  res.json({ 
-    status: "Backend is operational 🚀", 
+  res.json({
+    status: "Backend is operational 🚀",
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
@@ -84,6 +85,7 @@ app.use('/leads', leadsRoute);
 app.use('/', testimonialRoute);
 app.use('/', subscribeRoute);
 app.use('/user', userRoute);
+app.use('/itinerary-leads', itineraryLeadRoute);
 
 /**
  * ERROR HANDLING
@@ -96,7 +98,8 @@ app.use(errorHandler);
 /**
  * SERVER LIFECYCLE
  */
-const PORT = process.env.PORT || 2000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`[SYSTEM] Server active on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
 });
+

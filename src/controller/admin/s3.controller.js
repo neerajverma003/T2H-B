@@ -70,7 +70,7 @@ export const generatePresignedUrl = async (req, res) => {
  */
 export const getPresignedViewUrl = async (key) => {
   if (!key) return null;
-  
+
   // If the key is already a full URL (legacy data), return it as is
   if (key.startsWith('http')) return key;
 
@@ -89,12 +89,12 @@ export const getPresignedViewUrl = async (key) => {
  */
 export const extractS3Key = (urlOrKey) => {
   if (!urlOrKey || typeof urlOrKey !== 'string') return urlOrKey;
-  if (!urlOrKey.startsWith('http')) return urlOrKey; 
+  if (!urlOrKey.startsWith('http')) return urlOrKey;
 
   try {
     const url = new URL(urlOrKey);
     let key = decodeURIComponent(url.pathname);
-    
+
     // Remove leading slash if present
     if (key.startsWith('/')) key = key.substring(1);
 

@@ -6,7 +6,7 @@ import { AdminUserVerify,
   getMe,
   logout,
   deleteUser,} from "../../controller/admin/admin.controller.js";
-import {authorizeAdmin} from "../../middleware/auth.js"
+import {authorizeAdmin, authorizeSuperadmin} from "../../middleware/auth.js"
 import { auth } from '../../middleware/auth.js';
 
 import {
@@ -97,9 +97,9 @@ adminRoute.post('/adminRegister',AdminUserCreate)
 adminRoute.get('/me', auth, authorizeAdmin, getMe);
 adminRoute.patch('/change-password', auth, authorizeAdmin, changePassword);
 
-adminRoute.post('/add-user', auth, authorizeAdmin, AdminUserCreate);
-adminRoute.get('/get-admin-user', auth, authorizeAdmin, userExistedInAdmin);
-adminRoute.delete('/delete-user/:userId', auth, authorizeAdmin, deleteUser);
+adminRoute.post('/add-user', auth, authorizeSuperadmin, AdminUserCreate);
+adminRoute.get('/get-admin-user', auth, authorizeSuperadmin, userExistedInAdmin);
+adminRoute.delete('/delete-user/:userId', auth, authorizeSuperadmin, deleteUser);
 
 // Image Gallery Admin Routes (S3 keys sent as JSON — no multer needed)
 adminRoute.post("/image-Gallery", auth, postImageGallery);
@@ -112,7 +112,7 @@ adminRoute.get(
 adminRoute.post(
   "/image-Gallery/delete",
   auth,
-  authorizeAdmin,
+  authorizeSuperadmin,
   deleteImageFromGallery
 );
 
@@ -131,7 +131,7 @@ adminRoute.post(
 adminRoute.delete(
   '/destination/delete/:id',
   auth,
-  authorizeAdmin,
+  authorizeSuperadmin,
   deleteDestination_Domestic_Internationl
 );
 adminRoute.get('/destination/edit/:id', auth, getSingleDestinationBYId);
@@ -141,7 +141,7 @@ adminRoute.patch('/destination/:id/delete-image', deleteDestinationImage);
 
 adminRoute.post('/itinerary', auth, createItinerary);
 adminRoute.patch('/itinerary/:id', auth, updateItinerary);
-adminRoute.delete('/itinerary/:id', auth, authorizeAdmin, deleteItinerary);
+adminRoute.delete('/itinerary/:id', auth, authorizeSuperadmin, deleteItinerary);
 adminRoute.get('/itinerary', auth, getAllItinerary);
 adminRoute.get('/itinerary/:id', auth, getItineraryById);
 // Payment Mode & TNC & Cancellation policy endpoints (admin + public)
@@ -163,35 +163,35 @@ adminRoute.put('/honeymoon-cancellation-policy', auth, putHoneymoonCancellationP
 adminRoute.post( "/hero-section", auth, heroSection);
 adminRoute.get( "/hero-section/:page", auth, getAllHeroVideo );
 adminRoute.patch("/hero-section/:videoId",auth, updateHeroVideo );
-adminRoute.delete( "/hero-section/:videoId", auth, authorizeAdmin, deleteHeroVideo);
+adminRoute.delete( "/hero-section/:videoId", auth, authorizeSuperadmin, deleteHeroVideo);
 
 // Plan Your Journey admin endpoints (list + delete)
 adminRoute.get('/plan-your-journey', auth, authorizeAdmin, getPlanYourJourneyList);
-adminRoute.delete('/plan-your-journey/:id', auth, authorizeAdmin, deletePlanYourJourney);
+adminRoute.delete('/plan-your-journey/:id', auth, authorizeSuperadmin, deletePlanYourJourney);
 
 // Plan Your Trip admin endpoints (detailed honeymoon requests)
 adminRoute.get('/plan-your-trip', auth, authorizeAdmin, getPlanYourTripList);
-adminRoute.delete('/plan-your-trip/:id', auth, authorizeAdmin, deletePlanYourTrip);
+adminRoute.delete('/plan-your-trip/:id', auth, authorizeSuperadmin, deletePlanYourTrip);
 
 // General Leads admin endpoints
 adminRoute.get('/get-contact', auth, authorizeAdmin, getContacts);
-adminRoute.delete('/get-contact/:id', auth, authorizeAdmin, deleteContact);
+adminRoute.delete('/get-contact/:id', auth, authorizeSuperadmin, deleteContact);
 
 adminRoute.get('/get-suggestions', auth, authorizeAdmin, getSuggestions);
-adminRoute.delete('/get-suggestions/:id', auth, authorizeAdmin, deleteSuggestion);
+adminRoute.delete('/get-suggestions/:id', auth, authorizeSuperadmin, deleteSuggestion);
 
 adminRoute.get('/consultation-leads', auth, authorizeAdmin, getConsultationLeads);
-adminRoute.delete('/consultation-leads/:id', auth, authorizeAdmin, deletePlanYourTrip); 
+adminRoute.delete('/consultation-leads/:id', auth, authorizeSuperadmin, deletePlanYourTrip); 
 
 adminRoute.get('/get-subscribe', auth, authorizeAdmin, getSubscribes);
-adminRoute.delete('/get-subscribe/:id', auth, authorizeAdmin, deleteSubscribe);
+adminRoute.delete('/get-subscribe/:id', auth, authorizeSuperadmin, deleteSubscribe);
 
 // City Admin Routes
 adminRoute.post('/city', auth, createCity);
 adminRoute.get('/state/:destinationId', auth, getStateCity);
 adminRoute.get('/city/:cityId', auth, getCity);
 adminRoute.patch('/city/:cityId', auth, UpdateCity);
-adminRoute.delete('/city/:cityId', auth, authorizeAdmin, DeleteCity);
+adminRoute.delete('/city/:cityId', auth, authorizeSuperadmin, DeleteCity);
 
 
 //Blog Section
@@ -199,25 +199,25 @@ adminRoute.post('/blog', auth, postBlog);
 adminRoute.get('/blog', auth, getBlog);
 adminRoute.get('/blog/:blogId', auth, getSingleBlog);
 adminRoute.patch('/blog/:blogId', auth, updateBlog);
-adminRoute.delete('/blog/:blogId', auth, authorizeAdmin, deleteBlog);
+adminRoute.delete('/blog/:blogId', auth, authorizeSuperadmin, deleteBlog);
 
 // Testimonial Video Routes
 adminRoute.post('/testimonial-video', auth, testimonialVideo);
 adminRoute.get('/testimonial-video', auth, getAllTestimonialVideos);
-adminRoute.delete('/testimonial-video/:id', auth, deleteTestimonialVideo);
+adminRoute.delete('/testimonial-video/:id', auth, authorizeSuperadmin, deleteTestimonialVideo);
 
 // Resort Routes
 adminRoute.post('/resort', auth, createResort);
 adminRoute.get('/resort/all', auth, getAll);
 adminRoute.get('/resort/get/:id', auth, getResortById);
 adminRoute.patch('/resort/update/:id', auth, updateResort);
-adminRoute.delete('/resort/delete/:id', auth, authorizeAdmin, deleteResort);
+adminRoute.delete('/resort/delete/:id', auth, authorizeSuperadmin, deleteResort);
 // Settings & Reports
 adminRoute.get('/global-settings', getGlobalSettings); // Publicly accessible for frontend footer
-adminRoute.put('/global-settings', auth, authorizeAdmin, updateGlobalSettings);
+adminRoute.put('/global-settings', auth, authorizeSuperadmin, updateGlobalSettings);
 import { getAuditLogs } from '../../controller/admin/auditLog.admin.controller.js';
-adminRoute.get('/audit-logs', auth, authorizeAdmin, getAuditLogs);
-adminRoute.get('/reports/stats', auth, authorizeAdmin, getDashboardStats);
+adminRoute.get('/audit-logs', auth, authorizeSuperadmin, getAuditLogs);
+adminRoute.get('/reports/stats', auth, authorizeSuperadmin, getDashboardStats);
 
 export default adminRoute;
 
