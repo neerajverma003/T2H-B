@@ -35,6 +35,10 @@ const itinerarySchema = new mongoose.Schema(
       // required: true,
       trim: true,
     },
+    about_the_tour: {
+      type: String,
+      trim: true,
+    },
     classification: {
       type: [String],
       required: true,

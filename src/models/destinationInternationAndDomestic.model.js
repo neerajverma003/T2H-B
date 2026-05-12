@@ -27,6 +27,10 @@ const DestinationInternationAndDomesticSchema = new mongoose.Schema(
     },
     ideal_duration: {
       type: String,
+    },
+    short_description: {
+      type: String,
+      maxLength: 150
     }
     
 

@@ -109,6 +109,7 @@ export const createItinerary = async (req, res) => {
       pricing,
       selected_destination_id,
       terms_and_conditions,
+      about_the_tour,
       reviews,
     } = req.body;
 
@@ -202,6 +203,7 @@ export const createItinerary = async (req, res) => {
       pricing: finalPricing,
       selected_destination: selected_destination_id,
       terms_and_conditions,
+      about_the_tour: parseJSON(about_the_tour),
       reviews: Array.isArray(parsedReviews)
         ? parsedReviews.map(rev => ({ ...rev, profileImage: extractS3Key(rev.profileImage) }))
         : [],
@@ -347,6 +349,7 @@ export const updateItinerary = async (req, res) => {
       pricing,
       selected_destination_id,
       terms_and_conditions,
+      about_the_tour,
       reviews,
     } = req.body;
 
@@ -427,6 +430,7 @@ export const updateItinerary = async (req, res) => {
       pricing: finalPricing,
       selected_destination: selected_destination_id,
       terms_and_conditions,
+      about_the_tour: parseJSON(about_the_tour),
       reviews: Array.isArray(parsedReviews)
         ? parsedReviews.map(rev => ({ ...rev, profileImage: extractS3Key(rev.profileImage) }))
         : [],
