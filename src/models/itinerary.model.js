@@ -6,9 +6,24 @@ const dayInfoSchema = new mongoose.Schema(
     day: { type: String, trim: true },
     locationName: { type: String, trim: true },
     locationDetail: { type: String, trim: true },
+    sightseeing: { type: String, trim: true },
+    transfer: { type: String, trim: true },
+    weather: { type: String, trim: true },
+    date: { type: String, trim: true },
     day_image: { type: String, trim: true },
   },
   { _id: false }
+);
+
+// Sub-schema for reviews / traveler stories
+const reviewSchema = new mongoose.Schema(
+  {
+    name: { type: String, trim: true },
+    message: { type: String, trim: true },
+    rating: { type: Number, min: 1, max: 5, default: 5 },
+    profileImage: { type: String, trim: true },
+  },
+  { _id: true }
 );
 
 // Main schema
@@ -32,7 +47,6 @@ const itinerarySchema = new mongoose.Schema(
     },
     cancellation_policy: {
       type: String,
-      // required: true,
       trim: true,
     },
     about_the_tour: {
@@ -47,6 +61,10 @@ const itinerarySchema = new mongoose.Schema(
       type: [dayInfoSchema],
       required: true,
     },
+    reviews: {
+      type: [reviewSchema],
+      default: [],
+    },
     destination_detail: {
       type: String,
       required: true,
@@ -58,45 +76,36 @@ const itinerarySchema = new mongoose.Schema(
     },
     destination_thumbnails: {
       type: [String],
-      // required: true,
     },
     destination_video: {
-      type: String, // Store the Cloudinary video URL
-      // required: true,
+      type: String,
       trim: true,
     },
     discount: {
       type: String,
-      // required: true,
       trim: true,
     },
     duration: {
       type: String,
-      // required: true,
       trim: true,
     },
     exclusion: {
       type: String,
-      // required: true,
       trim: true,
     },
     hotel_as_per_category: {
       type: String,
-      // required: true,
       trim: true,
     },
     inclusion: {
       type: String,
-      // required: true,
       trim: true,
     },
     itinerary_theme: {
       type: [String],
-      // required: true,
     },
     payment_mode: {
       type: String,
-      // required: true,
       trim: true,
     },
     pricing: {
@@ -110,15 +119,15 @@ const itinerarySchema = new mongoose.Schema(
           if (
             typeof value === 'object' &&
             value !== null &&
-            typeof value.standard_price === 'number' &&
-            typeof value.discounted_price === 'number'
+            (value.is_price_on_request === true ||
+              (typeof value.standard_price === 'number' && typeof value.discounted_price === 'number'))
           ) {
             return true;
           }
           return false;
         },
         message:
-          "Pricing must be either 'As per the destination' or an object with both standard_price and discounted_price (as numbers).",
+          "Pricing must be 'As per the destination', an object with is_price_on_request, or standard_price/discounted_price.",
       },
     },
 
@@ -129,7 +138,6 @@ const itinerarySchema = new mongoose.Schema(
     },
     terms_and_conditions: {
       type: String,
-      // required: true,
       trim: true,
     },
   },

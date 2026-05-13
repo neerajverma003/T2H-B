@@ -2,17 +2,21 @@ import express from 'express';
 import {
   createTextTestimonial,
   getTextTestimonials,
+  getActiveTextTestimonials,
   toggleVerifyTestimonial,
   deleteTextTestimonial,
 } from '../../controller/textTestimonials.controller.js';
 
 const textTestimonialRouter = express.Router();
 
-// Submit new text testimonial (S3 keys sent as JSON — no multer needed)
+// Submit new text testimonial
 textTestimonialRouter.post('/submit', createTextTestimonial);
 
-// Fetch all text testimonials (admin)
-textTestimonialRouter.get('/', getTextTestimonials);
+// Fetch only active text testimonials (PUBLIC FRONTEND)
+textTestimonialRouter.get('/', getActiveTextTestimonials);
+
+// Fetch all text testimonials (ADMIN)
+textTestimonialRouter.get('/all', getTextTestimonials);
 
 // Toggle verify / toShow status
 textTestimonialRouter.patch('/:id/verify', toggleVerifyTestimonial);

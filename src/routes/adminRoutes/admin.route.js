@@ -88,6 +88,13 @@ import {
 } from '../../controller/admin/leads.admin.controller.js';
 import { getGlobalSettings, updateGlobalSettings } from '../../controller/admin/globalSettings.admin.controller.js';
 import { getDashboardStats } from '../../controller/admin/reports.admin.controller.js';
+import {
+  createTextTestimonial,
+  getTextTestimonials,
+  toggleVerifyTestimonial,
+  deleteTextTestimonial,
+} from '../../controller/textTestimonials.controller.js';
+
 const adminRoute = express.Router();
 
 
@@ -205,6 +212,12 @@ adminRoute.delete('/blog/:blogId', auth, authorizeSuperadmin, deleteBlog);
 adminRoute.post('/testimonial-video', auth, testimonialVideo);
 adminRoute.get('/testimonial-video', auth, getAllTestimonialVideos);
 adminRoute.delete('/testimonial-video/:id', auth, authorizeSuperadmin, deleteTestimonialVideo);
+
+// Text Testimonial Admin Routes
+adminRoute.post('/text-testimonial', auth, createTextTestimonial);
+adminRoute.get('/text-testimonial', auth, getTextTestimonials);
+adminRoute.patch('/text-testimonial/toggle-verify/:id', auth, toggleVerifyTestimonial);
+adminRoute.delete('/text-testimonial/:id', auth, authorizeSuperadmin, deleteTextTestimonial);
 
 // Resort Routes
 adminRoute.post('/resort', auth, createResort);

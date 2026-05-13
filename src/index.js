@@ -20,6 +20,7 @@ import testimonialRoute from './routes/t2h/testimonial.route.js';
 import subscribeRoute from './routes/t2h/subscribe.route.js';
 import userRoute from './routes/t2h/user.route.js';
 import itineraryLeadRoute from './routes/t2h/itineraryLead.route.js';
+import textTestimonialRouter from './routes/t2h/textTestimonial.route.js';
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/', testimonialRoute);
 app.use('/', subscribeRoute);
 app.use('/user', userRoute);
 app.use('/itinerary-leads', itineraryLeadRoute);
+app.use('/textTestimonial', textTestimonialRouter);
 
 /**
  * ERROR HANDLING

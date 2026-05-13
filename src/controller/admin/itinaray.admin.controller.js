@@ -53,7 +53,7 @@ export const processItineraryImages = async (itineraries) => {
           })
         );
       }
-
+      
       return itObj;
     })
   );
