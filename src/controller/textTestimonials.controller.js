@@ -52,6 +52,13 @@ export const createTextTestimonial = async (req, res) => {
     res.status(201).json({ success: true, data: savedTestimonial });
   } catch (error) {
     console.error('Error creating text testimonial:', error);
+    
+    // Handle Mongoose Validation Errors specifically
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({ success: false, message: messages.join(', ') });
+    }
+
     res.status(500).json({ success: false, message: error.message || 'Internal Server Error' });
   }
 };

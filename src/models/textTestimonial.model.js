@@ -36,7 +36,7 @@ const textTestimonialSchema = new mongoose.Schema(
     message: {
       type: String,
       required: true,
-      minlength: 10,
+      minlength: 2,
       maxlength: 500,
     },
     toShow: {
