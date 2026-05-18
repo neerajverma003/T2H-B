@@ -17,6 +17,15 @@ const blogSchema = new mongoose.Schema({
   content:{
     type:String,
     required:true
+  },
+  category: {
+    type : String,
+    enum: ['honeymoon']
+  },
+  post_type: {
+    type: String,
+    enum: ['blog', 'article'],
+    default: 'blog'
   }
 },{timestamps:true});
 

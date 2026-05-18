@@ -31,8 +31,13 @@ const DestinationInternationAndDomesticSchema = new mongoose.Schema(
     short_description: {
       type: String,
       maxLength: 150
+    },
+    slug: {
+      type: String,
+      unique: true,
+      index: true,
+      sparse: true, // Crucial for production: allows old destinations to not have a slug without throwing duplicate null errors
     }
-    
 
   },
   { timestamps: true }

@@ -23,3 +23,15 @@ export const generateToeknAdmin = (userID, role) => {
     expiresIn: '7d',
   });
 };
+
+
+export const generateSlug = (text) => {
+  if (!text) return "";
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9 -]/g, '') // remove invalid chars
+    .replace(/\s+/g, '-')        // replace spaces with -
+    .replace(/-+/g, '-');        // collapse dashes
+};

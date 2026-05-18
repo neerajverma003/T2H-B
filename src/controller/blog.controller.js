@@ -3,7 +3,10 @@ import { getPresignedViewUrl } from './admin/s3.controller.js';
 
 export const getBlog = async (req, res) => {
   try {
-    const blogs = await blogModel.find({ visibility: 'Public' }).sort({ createdAt: -1 });
+    const filter  = { visibility: 'Public', post_type: req.query.type || 'blog' };
+
+    const blogs = await blogModel.find(filter).sort({createdAt: -1});
+    // const blogs = await blogModel.find({ visibility: 'Public' }).sort({ createdAt: -1 });
     
     // Process images with presigned URLs
     const blogData = await Promise.all(
@@ -15,7 +18,6 @@ export const getBlog = async (req, res) => {
         return bObj;
       })
     );
-
     return res.status(200).json({ msg: 'Successfully fetched', success: true, blogData: blogData || [] });
   } catch (error) {
     console.error('Error fetching blogs:', error);

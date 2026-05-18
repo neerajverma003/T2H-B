@@ -17,7 +17,7 @@ export const processBlogImages = async (blogs) => {
 };
 
 export const postBlog = async (req, res) => {
-  const { title, content, visibility, category } = req.body;
+  const { title, content, visibility, category, post_type} = req.body;
   try {
     if (!title || !content || !visibility) {
       return res.status(400).json({ msg: 'All the fields are required', success: false });
@@ -32,6 +32,7 @@ export const postBlog = async (req, res) => {
       visibility: formatCountryName(visibility),
       cover_image: cover_image,
       category: category || 'honeymoon',
+      post_type: post_type || 'blog',
     });
     await newBlog.save();
     return res.status(201).json({ msg: 'Blog created successfully', success: true, blog: newBlog });
@@ -43,8 +44,9 @@ export const postBlog = async (req, res) => {
 
 export const getBlog = async (req, res) => {
   try {
-    const blogData = await blogModel.find();
-    //   console.log(blogData)
+    const filter = { post_type: req.query.type || 'blog' };
+    const blogData = await blogModel.find(filter);
+
     // Always return an array (empty if no blogs). Let client decide how to display.
     const processedData = await processBlogImages(blogData);
     // Always return an array (empty if no blogs). Let client decide how to display.
@@ -58,7 +60,7 @@ export const getBlog = async (req, res) => {
 
 
 export const updateBlog = async (req, res) => {
-  const { title, content, visibility, category } = req.body;
+  const { title, content, visibility, category, post_type } = req.body;
   const { blogId } = req.params;
   try {
     const blogData = await blogModel.findById(blogId);
@@ -70,6 +72,7 @@ export const updateBlog = async (req, res) => {
     if (content) blogData.content = content;
     if (visibility) blogData.visibility = formatCountryName(visibility);
     if (category) blogData.category = category;
+    if(post_type) blogData.post_type = post_type;
     
     // Handle image path - Now receiving S3 key from frontend
     if (req.body.cover_image) {

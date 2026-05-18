@@ -5,6 +5,10 @@ import { formatCountryName } from '../../utils.js';
 import { getPresignedViewUrl, extractS3Key } from './s3.controller.js';
 import { processDestinationImages } from '../destination.controller.js';
 import { logActivity } from '../../utils/auditLogger.js';
+import { generateSlug } from '../../utils.js';
+import crypto from 'crypto'; // Built into Node.js
+
+
 
 // For sending name of place according to their type "Domestic/International"
 export const destination_Internation_Or_Domestic = async (req, res) => {
@@ -55,6 +59,18 @@ export const addDestination_Domestic_Internationl = async (req, res) => {
       return res.status(409).json({ msg: 'The given destination already exists', success: false });
     }
 
+    // 1. Generate base slug
+    let newSlug = generateSlug(destination_name);
+    
+    // 2. Check if it already exists in the DB
+    const existingDest = await destinatinInternationAndDomestic.findOne({ slug: newSlug });
+    
+    // 3. If it exists, append a random 4-character string to make it unique
+    if (existingDest) {
+      const randomString = crypto.randomBytes(2).toString('hex');
+      newSlug = `${newSlug}-${randomString}`;
+    }
+
     const newDestination = new destinatinInternationAndDomestic({
       domestic_or_international: formatCountryName(type),
       destination_name: formatCountryName(destination_name),
@@ -64,6 +80,7 @@ export const addDestination_Domestic_Internationl = async (req, res) => {
       best_time: best_time || "",
       ideal_duration: ideal_duration || "",
       short_description: short_description || "",
+      slug: newSlug,
     });
 
     await newDestination.save();
@@ -151,7 +168,7 @@ export const getSingleDestinationBYId = async (req, res) => {
 // Update destination
 export const updateDestination_Domestic_Internationl = async (req, res) => {
   const { id } = req.params;
-  const { destination_name, type, destination_type, show_image, best_time, ideal_duration, short_description } = req.body;
+  const { destination_name, type, destination_type, show_image, title_image, best_time, ideal_duration, short_description } = req.body;
 
   try {
     if (!id) {
@@ -167,6 +184,13 @@ export const updateDestination_Domestic_Internationl = async (req, res) => {
     }
 
     // (Legacy multer image upload logic removed)
+
+    // ✅ Handle title_image reordering/updating
+    if (title_image) {
+      const selected = Array.isArray(title_image) ? title_image : [title_image];
+      const selectedKeys = selected.map(url => extractS3Key(url));
+      destination.title_image = selectedKeys;
+    }
 
     // ✅ Merge new S3 keys from direct upload (new flow - EditPage.jsx sends these)
     if (req.body.new_image_keys) {

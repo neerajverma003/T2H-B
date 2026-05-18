@@ -267,11 +267,19 @@ export const getOnlyDomesticDestinationOrInternational = async (req, res) => {
   }
 };
 
-// Get Single Destination by ID
+// Get Single Destination by ID (Now also accepts Slug)
 export const getDestinationById = async (req, res) => {
   try {
     const { id } = req.params;
-    const destination = await DestinationInternationAndDomesticModel.findById(id);
+    
+    // First try finding by slug
+    let destination = await DestinationInternationAndDomesticModel.findOne({ slug: id });
+    
+    // Fallback for old MongoDB IDs if slug wasn't found
+    if (!destination && id.match(/^[0-9a-fA-F]{24}$/)) {
+      destination = await DestinationInternationAndDomesticModel.findById(id);
+    }
+    
     if (!destination) {
       return res.status(404).json({ success: false, message: 'Destination not found' });
     }
@@ -283,13 +291,24 @@ export const getDestinationById = async (req, res) => {
   }
 };
 
-// Get Itinerary by Destination ID
+// Get Itinerary by Destination ID (or Slug)
 export const getItineraryByDestinationId = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Destination ID:', id);
+    
+    let destId = id;
+    
+    // If id is not a valid ObjectId, assume it's a slug and resolve it to an _id
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      const destination = await DestinationInternationAndDomesticModel.findOne({ slug: id });
+      if (!destination) {
+        return res.status(200).json({ success: true, data: [], message: 'Destination not found' });
+      }
+      destId = destination._id;
+    }
+
     const itineraries = await itineraryModel.find({
-      selected_destination: new mongoose.Types.ObjectId(id),
+      selected_destination: new mongoose.Types.ObjectId(destId),
     });
     if (!itineraries || itineraries.length === 0) {
       return res
@@ -415,3 +434,4 @@ export const getPublicGallery = async (req, res) => {
     return res.status(500).json({ msg: 'Server Error', success: false });
   }
 };
+
