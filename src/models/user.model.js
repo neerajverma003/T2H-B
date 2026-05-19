@@ -2,16 +2,35 @@ import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema(
   {
-    mobile_number: {
+    firstName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    email: {
       type: String,
       required: true,
       unique: true,
       trim: true,
+      lowercase: true,
     },
-    name: {
+    mobile_number: {
       type: String,
+      required: true,
       trim: true,
-      default: null,
+    },
+    profilePicture: {
+      type: String,
+      default: '',
+    },
+    password: {
+      type: String,
+      required: true,
     },
     otp: {
       type: String,
@@ -28,6 +47,29 @@ const userSchema = new mongoose.Schema(
     last_login: {
       type: Date,
       default: null,
+    },
+    partnerName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    weddingDate: {
+      type: Date,
+      default: null,
+    },
+    preferences: {
+      honeymoonVibe: {
+        type: String,
+        default: '',
+      },
+      dietaryPreference: {
+        type: String,
+        default: '',
+      },
+      departureCity: {
+        type: String,
+        default: '',
+      },
     },
   },
   { timestamps: true }

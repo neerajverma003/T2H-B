@@ -477,3 +477,122 @@ export const updateItinerary = async (req, res) => {
     });
   }
 };
+
+export const getPendingReviews = async (req, res) => {
+  try {
+    const itineraries = await itineraryModel.find({});
+    
+    let allReviews = [];
+    itineraries.forEach(itinerary => {
+      if (itinerary.reviews && Array.isArray(itinerary.reviews)) {
+        itinerary.reviews.forEach(review => {
+          allReviews.push({
+            reviewId: review._id,
+            itineraryId: itinerary._id,
+            itineraryTitle: itinerary.title,
+            name: review.name,
+            message: review.message,
+            rating: review.rating,
+            profileImage: review.profileImage,
+            isApproved: review.isApproved !== false,
+            createdAt: review.createdAt || itinerary.updatedAt,
+          });
+        });
+      }
+    });
+
+    allReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.status(200).json({
+      success: true,
+      data: allReviews
+    });
+  } catch (error) {
+    console.error('Get Pending Reviews Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch pending reviews.',
+      error: error.message
+    });
+  }
+};
+
+export const approveReview = async (req, res) => {
+  try {
+    const { itineraryId, reviewId } = req.params;
+
+    const itinerary = await itineraryModel.findOneAndUpdate(
+      { _id: itineraryId, "reviews._id": reviewId },
+      { $set: { "reviews.$.isApproved": true } },
+      { new: true }
+    );
+
+    if (!itinerary) {
+      return res.status(404).json({
+        success: false,
+        message: 'Itinerary or review not found.'
+      });
+    }
+
+    await logActivity({
+      adminId: req.userId,
+      action: 'UPDATE',
+      module: 'ITINERARY',
+      details: `Approved review ${reviewId} on itinerary ${itinerary.title}`,
+      targetId: itinerary._id,
+      ipAddress: req.ip
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review approved successfully.'
+    });
+  } catch (error) {
+    console.error('Approve Review Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to approve review.',
+      error: error.message
+    });
+  }
+};
+
+export const rejectReview = async (req, res) => {
+  try {
+    const { itineraryId, reviewId } = req.params;
+
+    const itinerary = await itineraryModel.findByIdAndUpdate(
+      itineraryId,
+      { $pull: { reviews: { _id: reviewId } } },
+      { new: true }
+    );
+
+    if (!itinerary) {
+      return res.status(404).json({
+        success: false,
+        message: 'Itinerary or review not found.'
+      });
+    }
+
+    await logActivity({
+      adminId: req.userId,
+      action: 'UPDATE',
+      module: 'ITINERARY',
+      details: `Rejected/Deleted review ${reviewId} on itinerary ${itinerary.title}`,
+      targetId: itinerary._id,
+      ipAddress: req.ip
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Review rejected and deleted successfully.'
+    });
+  } catch (error) {
+    console.error('Reject Review Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reject review.',
+      error: error.message
+    });
+  }
+};

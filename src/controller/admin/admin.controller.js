@@ -1,7 +1,7 @@
 import AdminModel from '../../models/adminUser.model.js';
 import bcrypt from 'bcrypt';
 import { generateToeknAdmin } from '../../utils.js';
-import UserModel from '../../models/user.model.js';
+import UserModel from '../../models/user.model.js'; 
 export const AdminUserVerify = async (req, res) => {
   try {
     const { username, password } = req.body;

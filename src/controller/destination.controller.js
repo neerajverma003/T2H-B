@@ -89,7 +89,11 @@ export const getSingleItineraryById = async (req, res) => {
     }
     
     const processed = await processItineraryImages(itinerary);
-    return res.status(200).json({ success: true, data: processed[0] });
+    const itineraryData = processed[0];
+    if (itineraryData && itineraryData.reviews) {
+      itineraryData.reviews = itineraryData.reviews.filter(rev => rev.isApproved !== false);
+    }
+    return res.status(200).json({ success: true, data: itineraryData });
   } catch (error) {
     console.error('Error in getSingleItineraryById:', error);
     res.status(500).json({ success: false, message: 'Server Error' });

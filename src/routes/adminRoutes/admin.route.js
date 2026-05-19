@@ -53,6 +53,9 @@ import { testimonialVideo, getAllTestimonialVideos, deleteTestimonialVideo }
   getItineraryById,
   deleteItinerary,
   updateItinerary,
+  getPendingReviews,
+  approveReview,
+  rejectReview,
 } from '../../controller/admin/itinaray.admin.controller.js';
 
 import { createResort, deleteResort, getAll, getResortById, updateResort } from '../../controller/admin/resortController.js';
@@ -151,6 +154,11 @@ adminRoute.patch('/itinerary/:id', auth, updateItinerary);
 adminRoute.delete('/itinerary/:id', auth, authorizeSuperadmin, deleteItinerary);
 adminRoute.get('/itinerary', auth, getAllItinerary);
 adminRoute.get('/itinerary/:id', auth, getItineraryById);
+
+// Itinerary Review Approval Routes
+adminRoute.get('/itinerary-reviews/pending', auth, authorizeSuperadmin, getPendingReviews);
+adminRoute.patch('/itinerary/:itineraryId/review/:reviewId/approve', auth, authorizeSuperadmin, approveReview);
+adminRoute.delete('/itinerary/:itineraryId/review/:reviewId', auth, authorizeSuperadmin, rejectReview);
 // Payment Mode & TNC & Cancellation policy endpoints (admin + public)
 adminRoute.get('/payment-mode/:type', getPaymentMode);
 adminRoute.get('/honeymoon/payment-mode/:type', getHoneymoonPaymentMode);

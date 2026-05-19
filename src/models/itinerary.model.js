@@ -22,8 +22,10 @@ const reviewSchema = new mongoose.Schema(
     message: { type: String, trim: true },
     rating: { type: Number, min: 1, max: 5, default: 5 },
     profileImage: { type: String, trim: true },
+    isApproved: { type: Boolean, default: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
-  { _id: true }
+  { _id: true, timestamps: true }
 );
 
 // Main schema

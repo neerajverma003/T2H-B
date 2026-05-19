@@ -4,15 +4,29 @@ import { ENV } from '../config/ENV.js';
 export const auth = async (req, res, next) => {
   try {
     // Check token from either cookie or Authorization header
-    const token =
-      req.cookies.token ||
-      req.headers.authorization?.split(' ')[1];
+    let tokenSource = '';
+    let token = req.headers.authorization?.split(' ')[1];
+    if (token) {
+      tokenSource = 'header:authorization';
+    } else {
+      token = req.cookies.token;
+      if (token) {
+        tokenSource = 'cookie:token';
+      } else {
+        token = req.cookies.user_token;
+        if (token) {
+          tokenSource = 'cookie:user_token';
+        }
+      }
+    }
 
     if (!token) {
+      console.log(`[AUTH] No token found in cookies or headers`);
       return res.status(401).json({ msg: 'Unauthorized: No token', success: false });
     }
 
     const authorized = jwt.verify(token, ENV.JWT_SECRET);
+    console.log(`[AUTH] Token verified successfully from ${tokenSource}. Decoded ID: ${authorized.id}`);
 
     req.userId = authorized.id;
     req.userRole = authorized.role || null;

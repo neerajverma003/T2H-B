@@ -1,7 +1,9 @@
 import bcrypt from 'bcrypt';
 import userModel from '../models/user.model.js';
+import itineraryModel from '../models/itinerary.model.js';
 import { generateToken } from '../utils.js';
 import { ENV } from '../config/ENV.js';
+import { sendOtpEmail } from '../utils/email.js';
 
 const IS_DEV = ENV.NODE_ENV !== 'production';
 
@@ -14,23 +16,26 @@ const IS_DEV = ENV.NODE_ENV !== 'production';
  */
 export const sendOtp = async (req, res) => {
   try {
-    const { mobile_number, name } = req.body;
+    const { email} = req.body;
 
     // --- Validation ---
-    if (!mobile_number) {
-      return res.status(400).json({ msg: 'Mobile number is required', success: false });
+    if (!email) {
+      return res.status(400).json({ msg: 'Email is required', success: false });
     }
 
-    const mobileRegex = /^[6-9]\d{9}$/;
-    if (!mobileRegex.test(mobile_number)) {
-      return res
-        .status(400)
-        .json({ msg: 'Please enter a valid 10-digit Indian mobile number', success: false });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ msg: 'Please enter a valid email address', success: false });
+    }
+
+    const existingUser = await userModel.findOne({ email });
+    if (existingUser && existingUser.is_verified) {
+      return res.status(400).json({ msg: 'Email is already registered. Please login.', success: false });
     }
 
     // --- Generate 6-digit OTP ---
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otp_expiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+    const otp_expiry = new Date(Date.now() +  5 * 60 * 1000); // 5 minutes from n
 
     // --- Hash OTP before storing ---
     const salt = await bcrypt.genSalt(10);
@@ -38,29 +43,32 @@ export const sendOtp = async (req, res) => {
 
     // --- Upsert user (create if not exists, update if exists) ---
     await userModel.findOneAndUpdate(
-      { mobile_number },
+      { email },
       {
-        mobile_number,
-        name: name?.trim() || undefined,
+        email,
         otp: hashedOtp,
         otp_expiry,
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
+    // --- Send Email ---
+    const emailSent = await sendOtpEmail(email, otp);
+
     // --- DEV MODE: Log OTP to server console (remove when SMS is integrated) ---
     if (IS_DEV) {
       console.log(`\n========================================`);
-      console.log(`📱 DEV MODE OTP for ${mobile_number}: ${otp}`);
+      console.log(`📱 DEV MODE OTP for ${email}: ${otp}`);
       console.log(`⏰ Expires at: ${otp_expiry.toISOString()}`);
       console.log(`========================================\n`);
     }
 
-    // TODO: Replace this with Fast2SMS or Twilio in production
-    // await sendSMS(mobile_number, `Your TripToHoneymoon OTP is: ${otp}. Valid for 5 minutes.`);
+    if (!emailSent && !IS_DEV) {
+      return res.status(500).json({ msg: 'Failed to send OTP email. Please check your mail configurations.', success: false });
+    }
 
     return res.status(200).json({
-      msg: `OTP sent successfully to +91 ${mobile_number}`,
+      msg: `OTP sent successfully to ${email}`,
       success: true,
       // DEV ONLY: expose OTP in response. Remove this in production!
       ...(IS_DEV && { dev_otp: otp }),
@@ -80,13 +88,13 @@ export const sendOtp = async (req, res) => {
  */
 export const verifyOtp = async (req, res) => {
   try {
-    const { mobile_number, otp } = req.body;
+    const { email,otp,password,firstName, lastName, mobile_number } = req.body;
 
     // --- Validation ---
-    if (!mobile_number || !otp) {
+    if (!email || !otp || !password || !firstName || !lastName || !mobile_number ) {
       return res
         .status(400)
-        .json({ msg: 'Mobile number and OTP are required', success: false });
+        .json({ msg: 'All registration fields (First name, Last name, Email, Mobile, Password, and OTP) are required', success: false });
     }
 
     if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
@@ -94,39 +102,33 @@ export const verifyOtp = async (req, res) => {
     }
 
     // --- Find user ---
-    const user = await userModel.findOne({ mobile_number });
+    const user = await userModel.findOne({ email });
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ msg: 'No OTP request found. Please request a new OTP.', success: false });
+      return res.status(400).json({ msg: 'No OTP request found. Please request a new OTP.', success: false });
     }
 
     // --- Check expiry first (fast fail before bcrypt) ---
     if (!user.otp_expiry || new Date() > user.otp_expiry) {
-      return res
-        .status(400)
-        .json({ msg: 'OTP has expired. Please request a new one.', success: false });
-    }
-
-    // --- Verify OTP hash ---
-    if (!user.otp) {
-      return res
-        .status(400)
-        .json({ msg: 'No OTP found. Please request a new one.', success: false });
+      return res.status(400).json({ msg: 'OTP has expired. Please request a new one.', success: false });
     }
 
     const isOtpValid = await bcrypt.compare(otp.toString(), user.otp);
-
     if (!isOtpValid) {
       return res.status(400).json({ msg: 'Invalid OTP. Please try again.', success: false });
     }
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(password,salt);
 
     // --- OTP is valid: clear it and mark user as verified ---
-    user.otp = undefined;
-    user.otp_expiry = undefined;
-    user.is_verified = true;
-    user.last_login = new Date();
+     user.firstName = firstName.trim();
+     user.lastName = lastName.trim();
+     user.mobile_number = mobile_number.trim();
+     user.password = hashPassword;
+     user.otp = undefined;
+     user.otp_expiry = undefined;
+     user.is_verified = true;
+     user.last_login = new Date();
     await user.save();
 
     // --- Generate JWT Token ---
@@ -141,18 +143,20 @@ export const verifyOtp = async (req, res) => {
     });
 
     return res.status(200).json({
-      msg: 'Login successful',
+      msg: 'Registration successful',
       success: true,
       token, // Also return in body for localStorage fallback
       user: {
         id: user._id,
-        name: user.name || null,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
         mobile_number: user.mobile_number,
       },
     });
   } catch (error) {
     console.error(`verifyOtp error → ${error}`);
-    return res.status(500).json({ msg: 'Verification failed. Please try again.', success: false });
+    return res.status(500).json({ msg: 'Registration failed. Please try again.', success: false });
   }
 };
 
@@ -165,7 +169,7 @@ export const verifyOtp = async (req, res) => {
  */
 export const getMe = async (req, res) => {
   try {
-    const user = await userModel.findById(req.userId).select('-otp -otp_expiry');
+    const user = await userModel.findById(req.userId).select('-otp -otp_expiry  -password');
 
     if (!user) {
       return res.status(404).json({ msg: 'User not found', success: false });
@@ -175,10 +179,16 @@ export const getMe = async (req, res) => {
       success: true,
       user: {
         id: user._id,
-        name: user.name || null,
+        firstName: user.firstName,
+        lastName: user.lastName,
         mobile_number: user.mobile_number,
+        email: user.email,
+        profilePicture: user.profilePicture || '',
         is_verified: user.is_verified,
         last_login: user.last_login,
+        partnerName: user.partnerName || '',
+        weddingDate: user.weddingDate || null,
+        preferences: user.preferences || { honeymoonVibe: '', dietaryPreference: '', departureCity: '' },
       },
     });
   } catch (error) {
@@ -205,5 +215,142 @@ export const logout = async (req, res) => {
   } catch (error) {
     console.error(`logout error → ${error}`);
     return res.status(500).json({ msg: 'Logout failed', success: false });
+  }
+};
+
+export const login = async (req, res) => {
+  try{
+    const {email, password} = req.body;
+    if(!email || !password){
+      return res.status(400).json({msg: "Email and password are required", success: false});
+    }
+    const user = await userModel.findOne({email});
+    if(!user || !user.is_verified){
+      return res.status(400).json({msg: "User not found or not verified", success: false});
+    }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if(!isMatch){
+      return res.status(400).json({msg: "Invalid password", success: false});
+    }
+
+    user.last_login = new Date();
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.cookie('user_token', token, {
+      httpOnly: true,
+      secure: ENV.NODE_ENV === 'production',
+      sameSite: ENV.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    return res.status(200).json({
+      msg: "Login successful",
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        mobile_number: user.mobile_number,
+        profilePicture: user.profilePicture || '',
+        partnerName: user.partnerName || '',
+        weddingDate: user.weddingDate || null,
+        preferences: user.preferences || { honeymoonVibe: '', dietaryPreference: '', departureCity: '' },
+      },
+    });
+  }catch(error){
+    console.error(`login error → ${error}`);
+    return res.status(500).json({msg: "Login failed. Please try again.", success: false})
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, mobile_number, profilePicture, partnerName, weddingDate, preferences } = req.body;
+    const user = await userModel.findById(req.userId);
+
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found', success: false });
+    }
+
+    if (firstName) user.firstName = firstName.trim();
+    if (lastName) user.lastName = lastName.trim();
+    if (mobile_number) user.mobile_number = mobile_number.trim();
+    if (profilePicture !== undefined) user.profilePicture = profilePicture.trim();
+    if (partnerName !== undefined) user.partnerName = partnerName.trim();
+    if (weddingDate !== undefined) user.weddingDate = weddingDate ? new Date(weddingDate) : null;
+    
+    if (preferences) {
+      user.preferences = {
+        honeymoonVibe: preferences.honeymoonVibe || '',
+        dietaryPreference: preferences.dietaryPreference || '',
+        departureCity: preferences.departureCity || '',
+      };
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      msg: 'Profile updated successfully',
+      success: true,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        mobile_number: user.mobile_number,
+        profilePicture: user.profilePicture,
+        partnerName: user.partnerName,
+        weddingDate: user.weddingDate,
+        preferences: user.preferences,
+      },
+    });
+  } catch (error) {
+    console.error(`updateProfile error → ${error}`);
+    return res.status(500).json({ msg: 'Failed to update profile. Please try again.', success: false });
+  }
+};
+
+export const addItineraryReview = async (req, res) => {
+  try {
+    const { id } = req.params; // Itinerary ID
+    const { rating, message } = req.body;
+
+    if (!rating || !message) {
+      return res.status(400).json({ msg: 'Rating and message are required', success: false });
+    }
+
+    const user = await userModel.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found', success: false });
+    }
+
+    const itinerary = await itineraryModel.findById(id);
+    if (!itinerary) {
+      return res.status(404).json({ msg: 'Itinerary not found', success: false });
+    }
+
+    const newReview = {
+      name: `${user.firstName} ${user.lastName || ''}`.trim(),
+      message: message.trim(),
+      rating: Number(rating),
+      profileImage: user.profilePicture || '',
+      isApproved: false, // Must be approved by superadmin
+      userId: user._id,
+    };
+
+    itinerary.reviews.push(newReview);
+    await itinerary.save();
+
+    return res.status(200).json({
+      msg: 'Review submitted successfully. It will be visible once approved by Superadmin.',
+      success: true,
+      review: newReview,
+    });
+  } catch (error) {
+    console.error(`addItineraryReview error → ${error}`);
+    return res.status(500).json({ msg: 'Failed to submit review.', success: false });
   }
 };
