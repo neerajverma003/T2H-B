@@ -354,3 +354,45 @@ export const addItineraryReview = async (req, res) => {
     return res.status(500).json({ msg: 'Failed to submit review.', success: false });
   }
 };
+
+export const getMyReviews = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ msg: 'Unauthorized access', success: false });
+    }
+
+    // Find all itineraries containing at least one review from this user
+    const itineraries = await itineraryModel.find({ "reviews.userId": userId });
+
+    let userReviews = [];
+    itineraries.forEach(itinerary => {
+      if (itinerary.reviews && Array.isArray(itinerary.reviews)) {
+        itinerary.reviews.forEach(review => {
+          if (review.userId && review.userId.toString() === userId.toString()) {
+            userReviews.push({
+              _id: review._id,
+              rating: review.rating,
+              message: review.message,
+              isApproved: review.isApproved !== false,
+              createdAt: review.createdAt || itinerary.updatedAt,
+              itineraryId: itinerary._id,
+              itineraryTitle: itinerary.title,
+            });
+          }
+        });
+      }
+    });
+
+    // Sort reviews by creation date descending
+    userReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.status(200).json({
+      success: true,
+      reviews: userReviews
+    });
+  } catch (error) {
+    console.error(`getMyReviews error → ${error}`);
+    return res.status(500).json({ msg: 'Failed to retrieve reviews.', success: false });
+  }
+};
