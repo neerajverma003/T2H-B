@@ -275,10 +275,17 @@ export const getWalletDetails = async (req, res) => {
       }).sort({ created_at: -1 });
     }
 
+    // 4. Fetch gift cards purchased by this user
+    const purchasedCards = await GiftCard.find({
+      sender_user_id: userId
+    }).sort({ created_at: -1 });
+
     return res.status(200).json({
       success: true,
       wallet: {
         balance: totalBalance,
+        active_cards: activeCards,
+        purchased_cards: purchasedCards,
         transactions,
         pending_invites
       }

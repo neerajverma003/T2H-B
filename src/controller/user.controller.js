@@ -16,9 +16,12 @@ const IS_DEV = ENV.NODE_ENV !== 'production';
  */
 export const sendOtp = async (req, res) => {
   try {
-    const { email} = req.body;
+    const { email, mobile_number } = req.body;
 
     // --- Validation ---
+    if (!mobile_number) {
+      return res.status(400).json({ msg: 'Mobile number is required', success: false });
+    }
     if (!email) {
       return res.status(400).json({ msg: 'Email is required', success: false });
     }
@@ -46,6 +49,7 @@ export const sendOtp = async (req, res) => {
       { email },
       {
         email,
+        mobile_number,
         otp: hashedOtp,
         otp_expiry,
       },
@@ -68,7 +72,7 @@ export const sendOtp = async (req, res) => {
     }
 
     return res.status(200).json({
-      msg: `OTP sent successfully to ${email}`,
+      msg: `OTP sent successfully to +91 ${mobile_number}`,
       success: true,
       // DEV ONLY: expose OTP in response. Remove this in production!
       ...(IS_DEV && { dev_otp: otp }),

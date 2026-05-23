@@ -21,6 +21,9 @@ import subscribeRoute from './routes/t2h/subscribe.route.js';
 import userRoute from './routes/t2h/user.route.js';
 import itineraryLeadRoute from './routes/t2h/itineraryLead.route.js';
 import textTestimonialRouter from './routes/t2h/textTestimonial.route.js';
+import giftCardRoute from './routes/t2h/giftCard.route.js';
+import aboutRoute from './routes/t2h/about.route.js';
+
 
 const app = express();
 
@@ -88,7 +91,8 @@ app.use('/', subscribeRoute);
 app.use('/user', userRoute);
 app.use('/itinerary-leads', itineraryLeadRoute);
 app.use('/textTestimonial', textTestimonialRouter);
-
+app.use('/gift-cards', giftCardRoute);
+app.use('/', aboutRoute); // This exposes GET /about endpoint to the internet!
 /**
  * ERROR HANDLING
  * --------------
@@ -96,6 +100,9 @@ app.use('/textTestimonial', textTestimonialRouter);
  */
 app.use(notFound);
 app.use(errorHandler);
+
+//About us page 
+
 
 /**
  * SERVER LIFECYCLE

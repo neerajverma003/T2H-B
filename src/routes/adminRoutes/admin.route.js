@@ -98,10 +98,24 @@ import {
   deleteTextTestimonial,
 } from '../../controller/textTestimonials.controller.js';
 
+import {
+  verifyGiftCardByAdmin,
+  updateGiftCardStatusByAdmin,
+  getAllGiftCardsByAdmin
+} from '../../controller/admin/giftCard.admin.controller.js';
+
+
 const adminRoute = express.Router();
 
+import {
+  updateAboutStory,
+  createTeamMember,
+  updateTeamMember,
+  deleteTeamMember
+} from "../../controller/admin/about.admin.controller.js";
 
 
+adminRoute.post('/team/add-member', auth, authorizeAdmin, createTeamMember);
 adminRoute.post('/admin-login', AdminUserVerify);
 adminRoute.post('/adminRegister',AdminUserCreate)
 adminRoute.get('/me', auth, authorizeAdmin, getMe);
@@ -240,5 +254,20 @@ import { getAuditLogs } from '../../controller/admin/auditLog.admin.controller.j
 adminRoute.get('/audit-logs', auth, authorizeSuperadmin, getAuditLogs);
 adminRoute.get('/reports/stats', auth, authorizeSuperadmin, getDashboardStats);
 
+// Gift Card Admin Routes
+adminRoute.get('/giftcard/all', auth, authorizeSuperadmin, getAllGiftCardsByAdmin);
+adminRoute.get('/giftcard/verify/:code', auth, authorizeSuperadmin, verifyGiftCardByAdmin);
+adminRoute.put('/giftcard/update-status/:id', auth, authorizeSuperadmin, updateGiftCardStatusByAdmin);
+
+
+// ==========================================
+// 🏢 ABOUT US & TEAM ADMIN OPERATIONS
+// ==========================================
+// Update company story, banner videos/images, or stats targets
+adminRoute.put("/about-settings", auth, authorizeAdmin, updateAboutStory);
+// CRUD operations for team list
+adminRoute.post("/team", auth, authorizeAdmin, createTeamMember);
+adminRoute.patch("/team/:id", auth, authorizeAdmin, updateTeamMember);
+adminRoute.delete("/team/:id", auth, authorizeSuperadmin, deleteTeamMember); // superadmin only!
 export default adminRoute;
 
