@@ -51,7 +51,7 @@ export const sendGiftCardInviteEmail = async (email, amount, senderName, token) 
       },
     });
 
-    const frontendUrl =  'http://localhost:5174';
+    const frontendUrl = ENV.FRONTEND_URL || 'http://localhost:5174';
     const inviteLink = `${frontendUrl}/gift-cards/invite/${token}`;
 
     const mailOptions = {

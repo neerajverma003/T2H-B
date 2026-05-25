@@ -20,10 +20,10 @@ export const corsOptions = {
       return callback(null, true);
     }
 
-    // 5. LOCALHOST FALLBACK (Safety)
-    if (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1')) {
-      return callback(null, true);
-    }
+    // 5. LOCALHOST FALLBACK (Safety) - Disabled for strict production security
+    // if (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1')) {
+    //   return callback(null, true);
+    // }
 
     // 6. DYNAMIC OVERRIDE (Env Variable)
     if (process.env.ALLOW_ALL_ORIGINS === 'true') {
