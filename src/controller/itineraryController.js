@@ -58,3 +58,17 @@ export const getItinerariesByDestination = async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+export const getExclusivePackages = async (req, res) => {
+  try {
+    const rawData = await itinerary.find({ classification: { $regex: /^exclusive$/i } }).populate('selected_destination').sort({ createdAt: -1 });
+    if (!rawData || rawData.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+    const data = await processItineraryImages(rawData);
+    return res.status(200).json({ success: true, data: data });
+  } catch (error) {
+    console.error("Fetch exclusive itineraries error:", error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};

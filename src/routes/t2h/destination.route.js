@@ -14,7 +14,8 @@ import {
   getDestinationById,
   testing,
   getHoneymoonDestinations,
-  getPublicGallery
+  getPublicGallery,
+  getOnlyExclusiveItineraries
 } from '../../controller/destination.controller.js';
 
 const destinationRoute = express.Router();
@@ -35,4 +36,5 @@ destinationRoute.get(
 ); // Fetch only domestic or international destinations
 destinationRoute.get('/only-domestic-or-international/id/:id', getDestinationById);
 destinationRoute.get('/itineraries/:id', getItineraryByDestinationId);
+destinationRoute.get('/exclusive-itinerary', getOnlyExclusiveItineraries)
 export default destinationRoute;

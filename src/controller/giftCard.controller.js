@@ -134,7 +134,7 @@ export const getInviteDetails = async (req, res) => {
         path: 'gift_card_id',
         populate: { path: 'sender_user_id', select: 'firstName lastName' }
       });
-    
+
     if (!invite || invite.status !== 'pending' || new Date() > invite.token_expires_at) {
       return res.status(404).json({ success: false, msg: 'Invite is invalid or expired.' });
     }
@@ -167,7 +167,7 @@ export const acceptGift = async (req, res) => {
   try {
     const { token } = req.body;
     const recipient_user_id = req.userId; // Auth Middleware
-    
+
     const user = await userModel.findById(recipient_user_id);
     const invite = await GiftCardInvite.findOne({ invite_token: token }).session(session);
 
@@ -185,7 +185,7 @@ export const acceptGift = async (req, res) => {
     }
 
     const giftCard = await GiftCard.findById(invite.gift_card_id).session(session);
-    
+
     // Transfer Ownership
     invite.status = 'accepted';
     invite.accepted_at = new Date();
@@ -225,7 +225,7 @@ export const acceptGift = async (req, res) => {
 export const getMyGiftCards = async (req, res) => {
   try {
     const userId = req.userId;
-    
+
     // Fetch cards purchased by the user, or accepted by the user
     const giftCards = await GiftCard.find({
       $or: [
@@ -259,8 +259,8 @@ export const getWalletDetails = async (req, res) => {
     const transactions = await GiftCardTransaction.find({
       performed_by_user_id: userId
     })
-    .populate('gift_card_id', 'public_code type')
-    .sort({ created_at: -1 });
+      .populate('gift_card_id', 'public_code type')
+      .sort({ created_at: -1 });
 
     // 3. Fetch pending gift card invites for this user's email
     let pending_invites = [];

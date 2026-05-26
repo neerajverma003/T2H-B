@@ -439,3 +439,24 @@ export const getPublicGallery = async (req, res) => {
   }
 };
 
+// Get Only Exclusive Itineraries 
+export const getOnlyExclusiveItineraries = async (req, res) => {
+  try {
+    const exclusiveItineraries = await itineraryModel.find({
+      classification : { $regex : /^exclusive$/i} })
+      .populate('selected_destination')
+      .sort({createdAt : -1})
+      .limit(10);
+
+      if(!exclusiveItineraries || exclusiveItineraries.length ===0){
+        return res.status(200).json({ success : true, data : [] , message : 'No exclusive itinearies found'});
+      }
+
+      //Process images for S3 presigned URLs
+      const processed = await processItineraryImages(exclusiveItineraries);
+      return res.status(200).json({ success: true, data : processed});
+    }catch(error){
+      console.error('Error in getOnlyExclusiveItineraries:', error);
+      return res.status(500).json({ success: false, message: 'Server Error' });
+    }
+};
