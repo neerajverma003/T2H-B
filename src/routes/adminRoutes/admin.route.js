@@ -101,7 +101,11 @@ import {
 import {
   verifyGiftCardByAdmin,
   updateGiftCardStatusByAdmin,
-  getAllGiftCardsByAdmin
+  getAllGiftCardsByAdmin,
+  bulkIssueGiftCards,
+  getBulkCampaignProgress,
+  getAllBulkCampaigns,
+  getRegisteredUsersCount
 } from '../../controller/admin/giftCard.admin.controller.js';
 
 
@@ -258,6 +262,10 @@ adminRoute.get('/reports/stats', auth, authorizeSuperadmin, getDashboardStats);
 adminRoute.get('/giftcard/all', auth, authorizeSuperadmin, getAllGiftCardsByAdmin);
 adminRoute.get('/giftcard/verify/:code', auth, authorizeSuperadmin, verifyGiftCardByAdmin);
 adminRoute.put('/giftcard/update-status/:id', auth, authorizeSuperadmin, updateGiftCardStatusByAdmin);
+adminRoute.post('/giftcard/bulk-issue', auth, authorizeSuperadmin, bulkIssueGiftCards);
+adminRoute.get('/giftcard/batch/all', auth, authorizeSuperadmin, getAllBulkCampaigns);
+adminRoute.get('/giftcard/batch/:id', auth, authorizeSuperadmin, getBulkCampaignProgress);
+adminRoute.get('/giftcard/users-count', auth, authorizeSuperadmin, getRegisteredUsersCount);
 
 
 // ==========================================

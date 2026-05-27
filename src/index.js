@@ -23,6 +23,7 @@ import itineraryLeadRoute from './routes/t2h/itineraryLead.route.js';
 import textTestimonialRouter from './routes/t2h/textTestimonial.route.js';
 import giftCardRoute from './routes/t2h/giftCard.route.js';
 import aboutRoute from './routes/t2h/about.route.js';
+import { recoverInterruptedBatches } from "./services/startupRecovery.js";
 
 
 const app = express();
@@ -63,7 +64,10 @@ if (process.env.NODE_ENV !== 'production') {
 /**
  * DATABASE INITIALIZATION
  */
-connectDB();
+connectDB().then(() => {
+  // Execute self-healing startup daemon after database connection is fully active
+  recoverInterruptedBatches();
+});
 
 /**
  * SYSTEM HEALTH CHECK
