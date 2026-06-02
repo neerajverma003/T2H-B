@@ -26,6 +26,9 @@ const blogSchema = new mongoose.Schema({
     type: String,
     enum: ['blog', 'article'],
     default: 'blog'
+  },
+  quote: {
+    type: String
   }
 },{timestamps:true});
 

@@ -17,7 +17,7 @@ export const processBlogImages = async (blogs) => {
 };
 
 export const postBlog = async (req, res) => {
-  const { title, content, visibility, category, post_type} = req.body;
+  const { title, content, visibility, category, post_type, quote} = req.body;
   try {
     if (!title || !content || !visibility) {
       return res.status(400).json({ msg: 'All the fields are required', success: false });
@@ -33,6 +33,7 @@ export const postBlog = async (req, res) => {
       cover_image: cover_image,
       category: category || 'honeymoon',
       post_type: post_type || 'blog',
+      quote: quote || '',
     });
     await newBlog.save();
     return res.status(201).json({ msg: 'Blog created successfully', success: true, blog: newBlog });
@@ -60,7 +61,7 @@ export const getBlog = async (req, res) => {
 
 
 export const updateBlog = async (req, res) => {
-  const { title, content, visibility, category, post_type } = req.body;
+  const { title, content, visibility, category, post_type ,quote} = req.body;
   const { blogId } = req.params;
   try {
     const blogData = await blogModel.findById(blogId);
@@ -73,7 +74,7 @@ export const updateBlog = async (req, res) => {
     if (visibility) blogData.visibility = formatCountryName(visibility);
     if (category) blogData.category = category;
     if(post_type) blogData.post_type = post_type;
-    
+    if(quote !== undefined) blogData.quote = quote;
     // Handle image path - Now receiving S3 key from frontend
     if (req.body.cover_image) {
       blogData.cover_image = req.body.cover_image;
