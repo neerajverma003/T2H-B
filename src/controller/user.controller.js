@@ -43,8 +43,8 @@ export const sendOtp = async (req, res) => {
     // --- Hash OTP before storing ---
     const salt = await bcrypt.genSalt(10);
     const hashedOtp = await bcrypt.hash(otp, salt);
-
-    // --- Upsert user (create if not exists, update if exists) ---
+    
+    // --- Upsert user (create if not exists, update if exists) --
     await userModel.findOneAndUpdate(
       { email },
       {
