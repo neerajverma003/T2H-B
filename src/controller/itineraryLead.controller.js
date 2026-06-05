@@ -3,7 +3,7 @@ import ItineraryLead from '../models/itineraryLead.model.js';
 // Create a new itinerary lead
 export const createItineraryLead = async (req, res) => {
   try {
-    const { name, email, phone, state, city, itineraryId, itineraryTitle } = req.body;
+    const { name, email, phone, state, city, travelDate, travelers, budget, additionalDetails, itineraryId, itineraryTitle } = req.body;
 
     if (!name || !email || !phone || !itineraryId) {
       return res.status(400).json({
@@ -18,6 +18,10 @@ export const createItineraryLead = async (req, res) => {
       phone,
       state,
       city,
+      travelDate,
+      travelers,
+      budget,
+      additionalDetails,
       itineraryId,
       itineraryTitle
     });
@@ -68,6 +72,48 @@ export const deleteItineraryLead = async (req, res) => {
     });
   } catch (error) {
     console.error('Error in deleteItineraryLead:', error);
+    res.status(500).json({
+      success: false,
+      msg: 'Internal Server Error',
+      error: error.message
+    });
+  }
+};
+
+// Update lead status
+export const updateItineraryLeadStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = ['new', 'in_progress', 'proposal_sent', 'booked'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Invalid status value provided'
+      });
+    }
+
+    const lead = await ItineraryLead.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        msg: 'Lead not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: 'Lead status updated successfully',
+      data: lead
+    });
+  } catch (error) {
+    console.error('Error in updateItineraryLeadStatus:', error);
     res.status(500).json({
       success: false,
       msg: 'Internal Server Error',

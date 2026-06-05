@@ -22,6 +22,18 @@ export const deleteContact = async (req, res) => {
   }
 };
 
+export const updateContactStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const valid = ['pending', 'in_progress', 'resolved'];
+    if(!valid.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    const updated = await contactModel.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    return res.status(200).json({ success: true, data: updated });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // --- Suggestions/Complaints ---
 export const getSuggestions = async (req, res) => {
   try {
@@ -36,6 +48,18 @@ export const deleteSuggestion = async (req, res) => {
   try {
     await suggestionComplainModel.findByIdAndDelete(req.params.id);
     return res.status(200).json({ success: true, message: 'Deleted' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateSuggestionStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const valid = ['pending', 'in_progress', 'resolved'];
+    if(!valid.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    const updated = await suggestionComplainModel.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    return res.status(200).json({ success: true, data: updated });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -65,6 +89,18 @@ export const deleteSubscribe = async (req, res) => {
   try {
     await subscribeModel.findByIdAndDelete(req.params.id);
     return res.status(200).json({ success: true, message: 'Deleted' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateSubscribeStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const valid = ['subscribed', 'unsubscribed'];
+    if(!valid.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+    const updated = await subscribeModel.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    return res.status(200).json({ success: true, data: updated });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

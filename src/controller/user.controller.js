@@ -1,6 +1,11 @@
 import bcrypt from 'bcrypt';
 import userModel from '../models/user.model.js';
 import itineraryModel from '../models/itinerary.model.js';
+import ItineraryLead from '../models/itineraryLead.model.js';
+import ConsultationLead from '../models/consultationLead.model.js';
+import planYourTrip from '../models/planYourTrip.model.js';
+import PlanYourJourney from '../models/planYourJourney.model.js';
+import contactModel from '../models/contact.model.js';
 import { generateToken } from '../utils.js';
 import { ENV } from '../config/ENV.js';
 import { sendOtpEmail } from '../utils/email.js';
@@ -398,5 +403,70 @@ export const getMyReviews = async (req, res) => {
   } catch (error) {
     console.error(`getMyReviews error → ${error}`);
     return res.status(500).json({ msg: 'Failed to retrieve reviews.', success: false });
+  }
+};
+
+export const getMyEnquiries = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ msg: 'Unauthorized access', success: false });
+    }
+
+    // Find user to get their email
+    const user = await userModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ msg: 'User not found', success: false });
+    }
+
+    // Fetch leads matching user's email from all collections
+    const [itineraryLeads, consultationLeads, tripLeads, journeyLeads, contactLeads] = await Promise.all([
+      ItineraryLead.find({ email: user.email }),
+      ConsultationLead.find({ email: user.email }),
+      planYourTrip.find({ email: user.email }),
+      PlanYourJourney.find({ email: user.email }),
+      contactModel.find({ email: user.email })
+    ]);
+
+    // Normalize all to a unified enquiry object format
+    const allEnquiries = [
+      ...itineraryLeads.map(l => ({
+        ...l.toObject(),
+        type: 'Itinerary Booking',
+      })),
+      ...consultationLeads.map(l => ({
+        ...l.toObject(),
+        type: 'Consultation',
+        itineraryTitle: l.itineraryTitle || 'General Consultation',
+      })),
+      ...tripLeads.map(l => ({
+        ...l.toObject(),
+        type: 'Trip Request',
+        itineraryTitle: `Trip: ${l.from || 'Origin'} to ${l.to || 'Destination'}`,
+        travelers: `${(l.adults || 0) + (l.kids || 0)} People`,
+      })),
+      ...journeyLeads.map(l => ({
+        ...l.toObject(),
+        type: 'Journey Plan',
+        itineraryTitle: `Journey to ${l.destination || 'Custom Destination'}`,
+      })),
+      ...contactLeads.map(l => ({
+        ...l.toObject(),
+        type: 'Contact Inquiry',
+        itineraryTitle: `Subject: ${l.subject || 'General Inquiry'}`,
+        status: l.status === 'resolved' ? 'booked' : (l.status === 'in_progress' ? 'in_progress' : 'new')
+      }))
+    ];
+
+    // Sort by newest first
+    const sortedEnquiries = allEnquiries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.status(200).json({
+      success: true,
+      enquiries: sortedEnquiries
+    });
+  } catch (error) {
+    console.error(`getMyEnquiries error → ${error}`);
+    return res.status(500).json({ msg: 'Failed to retrieve enquiries.', success: false });
   }
 };

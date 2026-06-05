@@ -201,23 +201,32 @@ adminRoute.delete( "/hero-section/:videoId", auth, authorizeSuperadmin, deleteHe
 // Plan Your Journey admin endpoints (list + delete)
 adminRoute.get('/plan-your-journey', auth, authorizeAdmin, getPlanYourJourneyList);
 adminRoute.delete('/plan-your-journey/:id', auth, authorizeSuperadmin, deletePlanYourJourney);
+import { updatePlanYourJourneyStatus } from '../../controller/admin/planYourJourney.admin.controller.js';
+adminRoute.put('/plan-your-journey/:id/status', auth, authorizeAdmin, updatePlanYourJourneyStatus);
 
 // Plan Your Trip admin endpoints (detailed honeymoon requests)
 adminRoute.get('/plan-your-trip', auth, authorizeAdmin, getPlanYourTripList);
 adminRoute.delete('/plan-your-trip/:id', auth, authorizeSuperadmin, deletePlanYourTrip);
+import { updatePlanYourTripStatus } from '../../controller/admin/planYourTrip.admin.controller.js';
+adminRoute.put('/plan-your-trip/:id/status', auth, authorizeAdmin, updatePlanYourTripStatus);
 
 // General Leads admin endpoints
+import { updateContactStatus, updateSuggestionStatus, updateSubscribeStatus } from '../../controller/admin/leads.admin.controller.js';
+
 adminRoute.get('/get-contact', auth, authorizeAdmin, getContacts);
 adminRoute.delete('/get-contact/:id', auth, authorizeSuperadmin, deleteContact);
+adminRoute.put('/get-contact/:id/status', auth, authorizeAdmin, updateContactStatus);
 
 adminRoute.get('/get-suggestions', auth, authorizeAdmin, getSuggestions);
 adminRoute.delete('/get-suggestions/:id', auth, authorizeSuperadmin, deleteSuggestion);
+adminRoute.put('/get-suggestions/:id/status', auth, authorizeAdmin, updateSuggestionStatus);
 
 adminRoute.get('/consultation-leads', auth, authorizeAdmin, getConsultationLeads);
 adminRoute.delete('/consultation-leads/:id', auth, authorizeSuperadmin, deletePlanYourTrip); 
 
 adminRoute.get('/get-subscribe', auth, authorizeAdmin, getSubscribes);
 adminRoute.delete('/get-subscribe/:id', auth, authorizeSuperadmin, deleteSubscribe);
+adminRoute.put('/get-subscribe/:id/status', auth, authorizeAdmin, updateSubscribeStatus);
 
 // City Admin Routes
 adminRoute.post('/city', auth, createCity);

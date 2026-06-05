@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendOtp, verifyOtp, login, getMe, logout, updateProfile, addItineraryReview, getMyReviews } from '../../controller/user.controller.js';
+import { sendOtp, verifyOtp, login, getMe, logout, updateProfile, addItineraryReview, getMyReviews, getMyEnquiries } from '../../controller/user.controller.js';
 import { generatePresignedUrl } from '../../controller/admin/s3.controller.js';
 import { auth } from '../../middleware/auth.js';
 
@@ -18,5 +18,6 @@ userRouter.put('/profile', auth, updateProfile);
 userRouter.post('/generate-presigned-url', auth, generatePresignedUrl);
 userRouter.post('/itinerary/:id/review', auth, addItineraryReview);
 userRouter.get('/reviews', auth, getMyReviews);
+userRouter.get('/enquiries', auth, getMyEnquiries);
 
 export default userRouter;

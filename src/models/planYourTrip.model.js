@@ -46,6 +46,11 @@ const planYourTripSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    status: {
+      type: String,
+      enum: ['new', 'in_progress', 'proposal_sent', 'booked'],
+      default: 'new',
+    }
   },
   { timestamps: true }
 );

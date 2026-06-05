@@ -37,6 +37,11 @@ const consultationLeadSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    status: {
+      type: String,
+      enum: ['new', 'in_progress', 'proposal_sent', 'booked'],
+      default: 'new',
+    }
   },
   { timestamps: true }
 );

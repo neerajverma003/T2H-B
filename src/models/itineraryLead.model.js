@@ -22,6 +22,18 @@ const itineraryLeadSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    travelDate: {
+      type: String,
+    },
+    travelers: {
+      type: String,
+    },
+    budget: {
+      type: Number,
+    },
+    additionalDetails: {
+      type: String,
+    },
     itineraryId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Itinerary',
@@ -30,6 +42,11 @@ const itineraryLeadSchema = new mongoose.Schema(
     itineraryTitle: {
       type: String,
       required: true,
+    },
+    status: {
+      type: String,
+      enum: ['new', 'in_progress', 'proposal_sent', 'booked'],
+      default: 'new',
     }
   },
   { timestamps: true }

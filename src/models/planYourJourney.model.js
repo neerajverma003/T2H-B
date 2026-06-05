@@ -20,6 +20,11 @@ const planYourJourneySchema = new mongoose.Schema({
   archive:{
     type:Boolean,
     default: false,
+  },
+  status: {
+    type: String,
+    enum: ['new', 'in_progress', 'proposal_sent', 'booked'],
+    default: 'new',
   }
 },{timestamps:true});
 

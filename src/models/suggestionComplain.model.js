@@ -16,6 +16,11 @@ const suggestionComplain = new mongoose.Schema({
   archive: {
     type: Boolean,
     default: false
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'in_progress', 'resolved'],
+    default: 'pending',
   }
 }, { timestamps: true });
 const suggestionComplainModel = mongoose.model('suggestionComplain', suggestionComplain);

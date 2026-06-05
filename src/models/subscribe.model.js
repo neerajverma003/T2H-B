@@ -16,6 +16,11 @@ const subscribeSchema = new mongoose.Schema({
   archive: {
     type: Boolean,
     default: false
+  },
+  status: {
+    type: String,
+    enum: ['subscribed', 'unsubscribed'],
+    default: 'subscribed',
   }
 }, { timestamps: true });
 
