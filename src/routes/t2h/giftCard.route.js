@@ -6,7 +6,9 @@ import {
     getInviteDetails, 
     acceptGift,
     getMyGiftCards,
-    getWalletDetails
+    getWalletDetails,
+    renderGiftCardImage,
+    razorpayWebhook
 } from '../../controller/giftCard.controller.js';
 
 const giftCardRouter = express.Router();
@@ -19,6 +21,8 @@ giftCardRouter.get('/wallet/me', auth, getWalletDetails);
 
 // Public or Server-to-Server Routes
 giftCardRouter.post('/payment-webhook', verifyPayment);
+giftCardRouter.post('/razorpay-webhook', razorpayWebhook);
 giftCardRouter.get('/invite/:token', getInviteDetails);
+giftCardRouter.get('/render/:token', renderGiftCardImage); // Support dynamic PNG endpoint
 
 export default giftCardRouter;

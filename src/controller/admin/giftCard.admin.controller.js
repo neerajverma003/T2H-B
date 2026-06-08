@@ -153,8 +153,17 @@ export const bulkIssueGiftCards = async (req, res) => {
 
     // 2. Recipient Targeting Resolver
     if (recipient_type === 'registered') {
-      // Fetch all active user accounts projection only email to keep it fast
-      const registeredUsers = await UserModel.find({ email: { $exists: true } }, 'email');
+      if (!Array.isArray(emails) || emails.length === 0) {
+        return res.status(400).json({
+          success: false,
+          msg: 'Please provide a non-empty list of selected registered users.'
+        });
+      }
+
+      const cleanInputEmails = emails.map(e => typeof e === 'string' ? e.trim().toLowerCase() : '').filter(Boolean);
+
+      // Verify that the provided emails are actually registered users
+      const registeredUsers = await UserModel.find({ email: { $in: cleanInputEmails } }, 'email');
       
       finalEmails = registeredUsers
         .map((u) => u.email?.trim().toLowerCase())
@@ -163,7 +172,7 @@ export const bulkIssueGiftCards = async (req, res) => {
       if (finalEmails.length === 0) {
         return res.status(400).json({
           success: false,
-          msg: 'Database contains zero registered user accounts to target.'
+          msg: 'None of the provided emails match registered users in the database.'
         });
       }
     } else if (recipient_type === 'custom') {

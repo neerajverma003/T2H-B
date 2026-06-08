@@ -1,10 +1,19 @@
 import mongoose from 'mongoose';
 import crypto from 'crypto';
+import Razorpay from 'razorpay';
+import { ENV } from '../config/ENV.js';
 import GiftCard from '../models/giftCard.model.js';
 import GiftCardInvite from '../models/giftCardInvite.model.js';
 import GiftCardTransaction from '../models/giftCardTransaction.model.js';
 import userModel from '../models/user.model.js';
 import { sendGiftCardInviteEmail } from '../utils/email.js';
+import { renderGiftCardImageBuffer } from '../utils/giftCardImage.js';
+
+// Initialize Razorpay
+const razorpayInstance = new Razorpay({
+  key_id: ENV.RAZORPAY_KEY_ID || 'mock_key_id',
+  key_secret: ENV.RAZORPAY_KEY_SECRET || 'mock_key_secret',
+});
 
 // 1. CREATE GIFT CARD (Initiate Purchase)
 export const createGiftCard = async (req, res) => {
@@ -27,7 +36,22 @@ export const createGiftCard = async (req, res) => {
     const expiry_date = new Date();
     expiry_date.setFullYear(expiry_date.getFullYear() + 1);
 
-    // Create DB Entry in "created" state
+    // 1. Create Order on Razorpay
+    const options = {
+      amount: Number(amount) * 100, // amount in smallest currency unit (paise)
+      currency: "INR",
+      receipt: `receipt_gc_${Date.now()}`
+    };
+
+    let order;
+    try {
+      order = await razorpayInstance.orders.create(options);
+    } catch (razorpayError) {
+      console.error('Razorpay Error:', razorpayError);
+      return res.status(500).json({ success: false, msg: 'Failed to create payment order' });
+    }
+
+    // 2. Create DB Entry in "created" state
     const giftCard = new GiftCard({
       public_code,
       secure_token,
@@ -40,18 +64,19 @@ export const createGiftCard = async (req, res) => {
       message,
       expiry_date,
       status: 'created',
-      // razorpay_order_id: razorpayOrder.id (assuming Razorpay integration here)
+      razorpay_order_id: order.id
     });
 
     await giftCard.save();
-
-
 
     return res.status(201).json({
       success: true,
       msg: 'Gift Card initiated.',
       gift_card_id: giftCard._id,
-      // return razorpay order details to frontend
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: ENV.RAZORPAY_KEY_ID
     });
 
   } catch (error) {
@@ -63,11 +88,24 @@ export const createGiftCard = async (req, res) => {
 // 2. VERIFY PAYMENT (Webhook or verification endpoint)
 export const verifyPayment = async (req, res) => {
   try {
-    const { gift_card_id, razorpay_payment_id } = req.body; // Mock verification
+    const { gift_card_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
     const giftCard = await GiftCard.findById(gift_card_id);
 
     if (!giftCard || giftCard.status !== 'created') {
       return res.status(400).json({ success: false, msg: 'Invalid gift card or status.' });
+    }
+
+    // 1. Signature Verification
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", ENV.RAZORPAY_KEY_SECRET || 'mock_key_secret')
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature && ENV.RAZORPAY_KEY_SECRET) {
+      // Allow mock bypass if no real secret is set
+      return res.status(400).json({ success: false, msg: 'Invalid payment signature' });
     }
 
     giftCard.razorpay_payment_id = razorpay_payment_id;
@@ -122,6 +160,78 @@ export const verifyPayment = async (req, res) => {
   } catch (error) {
     console.error(`verifyPayment Error:`, error);
     return res.status(500).json({ success: false, msg: 'Internal server error' });
+  }
+};
+
+// 3. SERVER-TO-SERVER WEBHOOK (Razorpay Background Verifications)
+export const razorpayWebhook = async (req, res) => {
+  try {
+    const webhookSecret = ENV.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers['x-razorpay-signature'];
+    
+    if (webhookSecret && signature) {
+      const expectedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(req.rawBody || JSON.stringify(req.body))
+        .digest('hex');
+
+      if (expectedSignature !== signature) {
+        console.error('[WEBHOOK] Invalid signature detected.');
+        return res.status(400).json({ status: 'ignored', msg: 'Invalid signature' });
+      }
+    }
+
+    const { event, payload } = req.body;
+
+    if (event === 'order.paid' || event === 'payment.captured') {
+      const paymentEntity = payload.payment.entity;
+      const order_id = paymentEntity.order_id;
+      const payment_id = paymentEntity.id;
+
+      const giftCard = await GiftCard.findOne({ razorpay_order_id: order_id });
+      
+      if (giftCard && giftCard.status === 'created') {
+        giftCard.status = 'active';
+        giftCard.razorpay_payment_id = payment_id;
+        
+        if (giftCard.type === 'self') {
+          giftCard.accepted_by_user_id = giftCard.sender_user_id;
+          await giftCard.save();
+          
+          await GiftCardTransaction.create({
+            gift_card_id: giftCard._id,
+            transaction_type: 'purchase',
+            amount: giftCard.amount,
+            performed_by_user_id: giftCard.sender_user_id,
+            description: 'Self top-up successful via webhook.'
+          });
+        } else {
+          await giftCard.save();
+          const sender = await userModel.findById(giftCard.sender_user_id);
+          
+          const invite = new GiftCardInvite({
+            gift_card_id: giftCard._id,
+            invite_email: giftCard.recipient_email,
+            token: crypto.randomBytes(32).toString('hex')
+          });
+          await invite.save();
+
+          await sendGiftCardInviteEmail(
+            giftCard.recipient_email,
+            sender.firstName,
+            giftCard.amount,
+            invite.token,
+            giftCard.message
+          );
+        }
+        console.log(`[WEBHOOK] Order ${order_id} marked as active.`);
+      }
+    }
+
+    return res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    console.error('[WEBHOOK] Error processing webhook:', err);
+    return res.status(500).json({ status: 'error' });
   }
 };
 
@@ -294,5 +404,34 @@ export const getWalletDetails = async (req, res) => {
   } catch (error) {
     console.error('getWalletDetails Error:', error);
     return res.status(500).json({ success: false, msg: 'Failed to retrieve wallet details.' });
+  }
+};
+
+// 7. RENDER DYNAMIC GIFT CARD IMAGE (Server-side rendering for email compatibility)
+export const renderGiftCardImage = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const actualToken = token.split('.')[0]; // remove .png if present
+    
+    // Find the invite
+    const invite = await GiftCardInvite.findOne({ invite_token: actualToken }).populate('gift_card_id');
+    if (!invite || !invite.gift_card_id) {
+       return res.status(404).send('Gift card not found');
+    }
+
+    const giftCard = invite.gift_card_id;
+    const buffer = await renderGiftCardImageBuffer({
+      amount: giftCard.amount,
+      publicCode: giftCard.public_code,
+      expiryDate: giftCard.expiry_date,
+    });
+
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=31536000'); // Perfect cache for immutable token
+    return res.send(buffer);
+    
+  } catch (error) {
+    console.error('renderGiftCardImage Error:', error);
+    return res.status(500).send('Error generating image');
   }
 };
