@@ -105,7 +105,9 @@ import {
   bulkIssueGiftCards,
   getBulkCampaignProgress,
   getAllBulkCampaigns,
-  getRegisteredUsersCount
+  getRegisteredUsersCount,
+  remindGiftCardByAdmin,
+  remindSelectedInBatch
 } from '../../controller/admin/giftCard.admin.controller.js';
 
 
@@ -275,6 +277,12 @@ adminRoute.post('/giftcard/bulk-issue', auth, authorizeSuperadmin, bulkIssueGift
 adminRoute.get('/giftcard/batch/all', auth, authorizeSuperadmin, getAllBulkCampaigns);
 adminRoute.get('/giftcard/batch/:id', auth, authorizeSuperadmin, getBulkCampaignProgress);
 adminRoute.get('/giftcard/users-count', auth, authorizeSuperadmin, getRegisteredUsersCount);
+adminRoute.post('/giftcard/remind/:id', auth, authorizeSuperadmin, remindGiftCardByAdmin);
+adminRoute.post('/giftcard/batch/:batchId/remind-selected', auth, authorizeSuperadmin, remindSelectedInBatch);
+
+import { remindMultipleGiftCards, manualRedeemGiftCard } from '../../controller/admin/giftCard.admin.controller.js';
+adminRoute.post('/giftcard/remind-multiple', auth, authorizeSuperadmin, remindMultipleGiftCards);
+adminRoute.post('/giftcard/manual-redeem', auth, authorizeSuperadmin, manualRedeemGiftCard);
 
 
 // ==========================================

@@ -22,6 +22,7 @@ import userRoute from './routes/t2h/user.route.js';
 import itineraryLeadRoute from './routes/t2h/itineraryLead.route.js';
 import textTestimonialRouter from './routes/t2h/textTestimonial.route.js';
 import giftCardRoute from './routes/t2h/giftCard.route.js';
+import itineraryBookingRoute from './routes/t2h/itineraryBooking.route.js';
 import aboutRoute from './routes/t2h/about.route.js';
 import { recoverInterruptedBatches } from "./services/startupRecovery.js";
 
@@ -101,6 +102,7 @@ app.use('/user', userRoute);
 app.use('/itinerary-leads', itineraryLeadRoute);
 app.use('/textTestimonial', textTestimonialRouter);
 app.use('/gift-cards', giftCardRoute);
+app.use('/itinerary-bookings', itineraryBookingRoute);
 app.use('/', aboutRoute); // This exposes GET /about endpoint to the internet!
 /**
  * ERROR HANDLING

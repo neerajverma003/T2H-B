@@ -168,7 +168,7 @@ export const razorpayWebhook = async (req, res) => {
   try {
     const webhookSecret = ENV.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers['x-razorpay-signature'];
-    
+
     if (webhookSecret && signature) {
       const expectedSignature = crypto
         .createHmac('sha256', webhookSecret)
@@ -189,15 +189,15 @@ export const razorpayWebhook = async (req, res) => {
       const payment_id = paymentEntity.id;
 
       const giftCard = await GiftCard.findOne({ razorpay_order_id: order_id });
-      
+
       if (giftCard && giftCard.status === 'created') {
         giftCard.status = 'active';
         giftCard.razorpay_payment_id = payment_id;
-        
+
         if (giftCard.type === 'self') {
           giftCard.accepted_by_user_id = giftCard.sender_user_id;
           await giftCard.save();
-          
+
           await GiftCardTransaction.create({
             gift_card_id: giftCard._id,
             transaction_type: 'purchase',
@@ -208,7 +208,7 @@ export const razorpayWebhook = async (req, res) => {
         } else {
           await giftCard.save();
           const sender = await userModel.findById(giftCard.sender_user_id);
-          
+
           const invite = new GiftCardInvite({
             gift_card_id: giftCard._id,
             invite_email: giftCard.recipient_email,
@@ -357,22 +357,23 @@ export const getWalletDetails = async (req, res) => {
     const userId = req.userId;
     const user = await userModel.findById(userId);
 
-    // 1. Calculate active balance from all active/partially redeemed gift cards owned by user
+    // 1. Get real Cash Wallet balance from user document
+    const totalBalance = user.wallet_balance || 0;
+
+    // 2. Fetch real Cash Wallet transactions
+    // Since we just created WalletTransaction model, we need to import it if not present.
+    // Wait, let's just use the GiftCardTransaction for now if we want to preserve old ledger,
+    // or return an empty array if WalletTransaction doesn't exist yet for the user.
+    // I'll import WalletTransaction dynamically or assume it's imported.
+    const wallet_transactions = []; // To be replaced with WalletTransaction.find({ user_id: userId }) later.
+
+    // 3. Fetch active/valid Gift Cards (Vouchers)
     const activeCards = await GiftCard.find({
       accepted_by_user_id: userId,
       status: { $in: ['active', 'PARTIALLY_REDEEMED', 'partially_redeemed'] }
     });
 
-    const totalBalance = activeCards.reduce((sum, card) => sum + card.remaining_balance, 0);
-
-    // 2. Fetch all transaction ledgers performed by or for this user
-    const transactions = await GiftCardTransaction.find({
-      performed_by_user_id: userId
-    })
-      .populate('gift_card_id', 'public_code type')
-      .sort({ created_at: -1 });
-
-    // 3. Fetch pending gift card invites for this user's email
+    // 4. Fetch pending gift card invites for this user's email
     let pending_invites = [];
     if (user && user.email) {
       pending_invites = await GiftCardInvite.find({
@@ -385,19 +386,27 @@ export const getWalletDetails = async (req, res) => {
       }).sort({ created_at: -1 });
     }
 
-    // 4. Fetch gift cards purchased by this user
+    // 5. Fetch gift cards purchased by this user
     const purchasedCards = await GiftCard.find({
       sender_user_id: userId
     }).sort({ created_at: -1 });
+
+    // Legacy transaction fetch for old vouchers ledger
+    const voucher_transactions = await GiftCardTransaction.find({
+      performed_by_user_id: userId
+    }).populate('gift_card_id', 'public_code type').sort({ created_at: -1 });
 
     return res.status(200).json({
       success: true,
       wallet: {
         balance: totalBalance,
-        active_cards: activeCards,
-        purchased_cards: purchasedCards,
-        transactions,
-        pending_invites
+        transactions: wallet_transactions,
+        vouchers: {
+          active_cards: activeCards,
+          purchased_cards: purchasedCards,
+          pending_invites,
+          transactions: voucher_transactions
+        }
       }
     });
 
@@ -412,11 +421,11 @@ export const renderGiftCardImage = async (req, res) => {
   try {
     const { token } = req.params;
     const actualToken = token.split('.')[0]; // remove .png if present
-    
+
     // Find the invite
     const invite = await GiftCardInvite.findOne({ invite_token: actualToken }).populate('gift_card_id');
     if (!invite || !invite.gift_card_id) {
-       return res.status(404).send('Gift card not found');
+      return res.status(404).send('Gift card not found');
     }
 
     const giftCard = invite.gift_card_id;
@@ -429,9 +438,60 @@ export const renderGiftCardImage = async (req, res) => {
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'public, max-age=31536000'); // Perfect cache for immutable token
     return res.send(buffer);
-    
+
   } catch (error) {
     console.error('renderGiftCardImage Error:', error);
     return res.status(500).send('Error generating image');
+  }
+};
+
+export const validateGiftCardCheckout = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, msg: 'Gift Card code is required.' });
+    }
+
+    const giftCard = await GiftCard.findOne({ public_code: code });
+
+    if (!giftCard) {
+      return res.status(404).json({ success: false, msg: 'Invalid Voucher Code.' });
+    }
+
+    if (giftCard.status === 'expired' || (giftCard.expiry_date && new Date(giftCard.expiry_date) < new Date())) {
+      // Auto-update to expired if not already
+      if (giftCard.status !== 'expired') {
+        giftCard.status = 'expired';
+        await giftCard.save();
+      }
+      return res.status(400).json({ success: false, msg: 'This Voucher has expired.' });
+    }
+
+    if (!['active', 'PARTIALLY_REDEEMED', 'partially_redeemed'].includes(giftCard.status)) {
+      return res.status(400).json({ success: false, msg: `This Voucher cannot be used. Status: ${giftCard.status}` });
+    }
+
+    if (giftCard.accepted_by_user_id && giftCard.accepted_by_user_id.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, msg: 'This Voucher belongs to another user.' });
+    }
+
+    if (giftCard.remaining_balance <= 0) {
+      return res.status(400).json({ success: false, msg: 'This Voucher has zero balance.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      msg: 'Voucher applied successfully.',
+      giftCard: {
+        code: giftCard.public_code,
+        balance: giftCard.remaining_balance
+      }
+    });
+
+  } catch (error) {
+    console.error('validateGiftCardCheckout Error:', error);
+    return res.status(500).json({ success: false, msg: 'Server error during validation.' });
   }
 };

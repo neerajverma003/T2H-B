@@ -45,6 +45,8 @@ const giftCardSchema = new mongoose.Schema({
   razorpay_order_id: { type: String },
   razorpay_payment_id: { type: String },
 
+  last_reminded_at: { type: Date },
+
   expiry_date: { type: Date, required: true },
   
 }, { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } });

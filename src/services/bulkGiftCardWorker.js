@@ -11,7 +11,7 @@ import GiftCard from '../models/giftCard.model.js';
 import GiftCardInvite from '../models/giftCardInvite.model.js';
 import GiftCardTransaction from '../models/giftCardTransaction.model.js';
 import GiftCardBatch from '../models/giftCardBatch.model.js';
-import { sendGiftCardInviteEmail } from '../utils/email.js';
+import { sendGiftCardInviteEmail, sendGiftCardReminderEmail } from '../utils/email.js';
 
 // Helper utility to pause execution thread for throttling (rate limiting SMTP/DB)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -175,5 +175,150 @@ export const processBulkGiftCards = async (batchId, emails) => {
     console.error(`[WORKER] Fatal error in processBulkGiftCards:`, globalError);
     // Mark campaign as failed due to system crash
     await GiftCardBatch.findByIdAndUpdate(batchId, { status: 'failed' });
+  }
+};
+
+export const processBulkReminders = async (batchId, selectedEmails, customMessage) => {
+  console.log(`[WORKER] Initiating bulk reminders for Batch: ${batchId} with ${selectedEmails.length} recipients`);
+  
+  try {
+    const chunkSize = 10;
+    const delayMs = 1500;
+    const totalEmails = selectedEmails.length;
+
+    for (let i = 0; i < totalEmails; i += chunkSize) {
+      const chunk = selectedEmails.slice(i, i + chunkSize);
+      
+      await Promise.all(
+        chunk.map(async (email) => {
+          try {
+            // Find the gift card associated with this email and batch
+            // Wait, we need to find the gift card where recipient_email === email or accepted_by_user_id.email === email
+            // The batch only saves emails_list. But GiftCard was created with recipient_email = email.
+            const card = await GiftCard.findOne({ recipient_email: email, status: { $nin: ['redeemed', 'expired', 'revoked', 'cancelled'] }, remaining_balance: { $gt: 0 } });
+            
+            if (!card) {
+               console.log(`[WORKER] Skipping email ${email} - No active eligible gift card found.`);
+               return;
+            }
+
+            // Check spam protection (last_reminded_at)
+            const now = new Date();
+            if (card.last_reminded_at) {
+              const hoursSinceLastReminder = (now - card.last_reminded_at) / (1000 * 60 * 60);
+              if (hoursSinceLastReminder < 48) {
+                console.log(`[WORKER] Skipping email ${email} - Reminded within 48 hours.`);
+                return;
+              }
+            }
+
+            const invite = await GiftCardInvite.findOne({ gift_card_id: card._id });
+            const token = invite ? invite.invite_token : null;
+
+            // Send Email
+            const emailSent = await sendGiftCardReminderEmail(
+              email,
+              card.amount,
+              customMessage,
+              token,
+              card.public_code,
+              card.expiry_date
+            );
+
+            if (emailSent) {
+               // Update last_reminded_at
+               card.last_reminded_at = now;
+               await card.save();
+            }
+
+          } catch (itemError) {
+            console.error(`[WORKER] Failed to process reminder for email: ${email} ->`, itemError);
+          }
+        })
+      );
+
+      if (i + chunkSize < totalEmails) {
+        await sleep(delayMs);
+      }
+    }
+    console.log(`[WORKER] Bulk reminders completed for Batch: ${batchId}`);
+  } catch (globalError) {
+    console.error(`[WORKER] Fatal error in processBulkReminders:`, globalError);
+  }
+};
+
+export const processBulkRemindersByCardIds = async (cardIds, customMessage) => {
+  console.log(`[WORKER] Initiating bulk reminders for ${cardIds.length} selected cards`);
+  
+  try {
+    const chunkSize = 10;
+    const delayMs = 1500;
+    const totalCards = cardIds.length;
+
+    for (let i = 0; i < totalCards; i += chunkSize) {
+      const chunk = cardIds.slice(i, i + chunkSize);
+      
+      await Promise.all(
+        chunk.map(async (cardId) => {
+          try {
+            const card = await GiftCard.findById(cardId);
+            
+            if (!card || ['redeemed', 'expired', 'revoked', 'cancelled'].includes(card.status) || card.remaining_balance <= 0) {
+               console.log(`[WORKER] Skipping card ${cardId} - Not eligible.`);
+               return;
+            }
+
+            // Find target email
+            let targetEmail = card.recipient_email;
+            if (card.accepted_by_user_id) {
+               const populatedCard = await GiftCard.findById(cardId).populate('accepted_by_user_id', 'email');
+               if (populatedCard.accepted_by_user_id) {
+                   targetEmail = populatedCard.accepted_by_user_id.email;
+               }
+            }
+
+            if (!targetEmail) return;
+
+            // Check spam protection (last_reminded_at)
+            const now = new Date();
+            if (card.last_reminded_at) {
+              const hoursSinceLastReminder = (now - card.last_reminded_at) / (1000 * 60 * 60);
+              if (hoursSinceLastReminder < 48) {
+                console.log(`[WORKER] Skipping email ${targetEmail} - Reminded within 48 hours.`);
+                return;
+              }
+            }
+
+            const invite = await GiftCardInvite.findOne({ gift_card_id: card._id });
+            const token = invite ? invite.invite_token : null;
+
+            // Send Email
+            const emailSent = await sendGiftCardReminderEmail(
+              targetEmail,
+              card.amount,
+              customMessage,
+              token,
+              card.public_code,
+              card.expiry_date
+            );
+
+            if (emailSent) {
+               card.last_reminded_at = now;
+               await card.save();
+            }
+
+          } catch (itemError) {
+            console.error(`[WORKER] Failed to process reminder for card: ${cardId} ->`, itemError);
+          }
+        })
+      );
+
+      if (i + chunkSize < totalCards) {
+        await sleep(delayMs);
+      }
+    }
+    console.log(`[WORKER] Bulk reminders completed for selected cards`);
+  } catch (globalError) {
+    console.error(`[WORKER] Fatal error in processBulkRemindersByCardIds:`, globalError);
   }
 };
