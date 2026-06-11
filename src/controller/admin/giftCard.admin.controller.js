@@ -223,18 +223,29 @@ export const bulkIssueGiftCards = async (req, res) => {
 
       // Strict email regex validation and deduplication
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const cleanSet = new Set();
+      // const cleanSet = new Set();
 
+      // for (const email of emails) {
+      //   if (email && typeof email === 'string') {
+      //     const cleanEmail = email.trim().toLowerCase();
+      //     if (emailRegex.test(cleanEmail)) {
+      //       cleanSet.add(cleanEmail);
+      //     }
+      //   }
+      // }
+
+      // finalEmails = Array.from(cleanSet);
+      const cleanArray = [];
       for (const email of emails) {
         if (email && typeof email === 'string') {
           const cleanEmail = email.trim().toLowerCase();
           if (emailRegex.test(cleanEmail)) {
-            cleanSet.add(cleanEmail);
+            cleanArray.push(cleanEmail);
           }
         }
       }
+      finalEmails = cleanArray;
 
-      finalEmails = Array.from(cleanSet);
 
       if (finalEmails.length === 0) {
         return res.status(400).json({

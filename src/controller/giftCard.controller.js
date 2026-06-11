@@ -92,7 +92,16 @@ export const verifyPayment = async (req, res) => {
 
     const giftCard = await GiftCard.findById(gift_card_id);
 
-    if (!giftCard || giftCard.status !== 'created') {
+    if (!giftCard) {
+      return res.status(404).json({ success: false, msg: 'Gift card not found.' });
+    }
+
+    // Idempotency: If webhook or double-submit already processed it, return success.
+    if (giftCard.status === 'active' || giftCard.status === 'invited') {
+      return res.status(200).json({ success: true, msg: 'Payment already verified.' });
+    }
+
+    if (giftCard.status !== 'created') {
       return res.status(400).json({ success: false, msg: 'Invalid gift card or status.' });
     }
 
@@ -125,8 +134,6 @@ export const verifyPayment = async (req, res) => {
         description: 'Self top-up successful.'
       });
 
-
-
       return res.status(200).json({ success: true, msg: 'Wallet credited successfully.' });
     }
 
@@ -135,19 +142,25 @@ export const verifyPayment = async (req, res) => {
       giftCard.status = 'invited';
       await giftCard.save();
 
-      const inviteToken = GiftCardInvite.generateUrlSafeToken();
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // Link valid for 7 days
+      // Check if invite already exists (idempotency / race condition check)
+      let invite = await GiftCardInvite.findOne({ gift_card_id: giftCard._id });
+      let inviteToken;
 
-      const invite = new GiftCardInvite({
-        gift_card_id: giftCard._id,
-        invite_token: inviteToken,
-        recipient_email: giftCard.recipient_email,
-        token_expires_at: expiresAt
-      });
-      await invite.save();
+      if (!invite) {
+        inviteToken = GiftCardInvite.generateUrlSafeToken();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // Link valid for 7 days
 
-
+        invite = new GiftCardInvite({
+          gift_card_id: giftCard._id,
+          invite_token: inviteToken,
+          recipient_email: giftCard.recipient_email,
+          token_expires_at: expiresAt
+        });
+        await invite.save();
+      } else {
+        inviteToken = invite.invite_token;
+      }
 
       // Send the beautiful HTML Email Invite
       const sender = await userModel.findById(giftCard.sender_user_id);
@@ -191,10 +204,10 @@ export const razorpayWebhook = async (req, res) => {
       const giftCard = await GiftCard.findOne({ razorpay_order_id: order_id });
 
       if (giftCard && giftCard.status === 'created') {
-        giftCard.status = 'active';
         giftCard.razorpay_payment_id = payment_id;
 
         if (giftCard.type === 'self') {
+          giftCard.status = 'active';
           giftCard.accepted_by_user_id = giftCard.sender_user_id;
           await giftCard.save();
 
@@ -206,25 +219,39 @@ export const razorpayWebhook = async (req, res) => {
             description: 'Self top-up successful via webhook.'
           });
         } else {
+          giftCard.status = 'invited';
           await giftCard.save();
           const sender = await userModel.findById(giftCard.sender_user_id);
+          const senderName = sender ? `${sender.firstName} ${sender.lastName || ''}`.trim() : 'A Friend';
 
-          const invite = new GiftCardInvite({
-            gift_card_id: giftCard._id,
-            invite_email: giftCard.recipient_email,
-            token: crypto.randomBytes(32).toString('hex')
-          });
-          await invite.save();
+          // Check if invite already exists (idempotency / race condition check)
+          let invite = await GiftCardInvite.findOne({ gift_card_id: giftCard._id });
+          let inviteToken;
+
+          if (!invite) {
+            inviteToken = GiftCardInvite.generateUrlSafeToken();
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 7); // Link valid for 7 days
+
+            invite = new GiftCardInvite({
+              gift_card_id: giftCard._id,
+              invite_token: inviteToken,
+              recipient_email: giftCard.recipient_email,
+              token_expires_at: expiresAt
+            });
+            await invite.save();
+          } else {
+            inviteToken = invite.invite_token;
+          }
 
           await sendGiftCardInviteEmail(
             giftCard.recipient_email,
-            sender.firstName,
             giftCard.amount,
-            invite.token,
-            giftCard.message
+            senderName,
+            inviteToken
           );
         }
-        console.log(`[WEBHOOK] Order ${order_id} marked as active.`);
+        console.log(`[WEBHOOK] Order ${order_id} marked as active/invited.`);
       }
     }
 

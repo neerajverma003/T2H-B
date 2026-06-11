@@ -73,6 +73,15 @@ const giftCardBatchSchema = new mongoose.Schema(
       required: [true, 'Sender admin reference is required']
     },
     
+    // Strict 1-to-1 mapping for exact frontend rendering
+    issued_cards: [
+      {
+        email: { type: String, lowercase: true, trim: true, required: true },
+        public_code: { type: String, required: true },
+        card_id: { type: mongoose.Schema.Types.ObjectId, ref: 'GiftCard', required: true }
+      }
+    ],
+    
     // Detailed error logging for invalid domains, bounces or SMTP failures
     failed_records: [
       {

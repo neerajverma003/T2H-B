@@ -7,6 +7,9 @@ import userModel from '../models/user.model.js';
 import GiftCard from '../models/giftCard.model.js';
 import GiftCardTransaction from '../models/giftCardTransaction.model.js';
 import WalletTransaction from '../models/walletTransaction.model.js';
+import { generateInvoiceHtml } from '../utils/invoiceTemplate.js';
+import { generatePdfBuffer } from '../utils/pdfGenerator.js';
+import { sendBookingConfirmationWithInvoice } from '../utils/email.js';
 
 // Initialize Razorpay
 const razorpayInstance = new Razorpay({
@@ -131,7 +134,15 @@ export const verifyBookingPayment = async (req, res) => {
     const { booking_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
     const booking = await ItineraryBooking.findById(booking_id);
-    if (!booking || booking.status !== 'payment_pending') {
+    if (!booking) {
+      return res.status(404).json({ success: false, msg: 'Booking not found.' });
+    }
+
+    if (booking.status === 'confirmed') {
+      return res.status(200).json({ success: true, msg: 'Payment already verified.' });
+    }
+
+    if (booking.status !== 'payment_pending') {
       return res.status(400).json({ success: false, msg: 'Invalid booking or already confirmed.' });
     }
 
@@ -178,7 +189,7 @@ export const verifyBookingPayment = async (req, res) => {
           gift_card_id: giftCard._id,
           performed_by_user_id: booking.user_id,
           amount: booking.voucher_amount_used,
-          transaction_type: 'redemption',
+          transaction_type: 'redeem',
           description: `Applied to Booking ID: ${booking._id}`
         });
         await gcTx.save();
@@ -208,7 +219,43 @@ export const verifyBookingPayment = async (req, res) => {
 
     await booking.save();
 
-    // Trigger Success Email (TODO)
+    // Trigger Success Email Asynchronously
+    try {
+      const userDetails = await userModel.findById(booking.user_id);
+      const itineraryDetails = await ItineraryMain.findById(booking.itinerary_id);
+      
+      const invoiceData = {
+        invoiceNumber: `INV-T2H-${booking._id.toString().substring(0, 8).toUpperCase()}`,
+        dateOfIssue: new Date().toLocaleDateString('en-IN'),
+        customerName: `${userDetails.firstName} ${userDetails.lastName || ''}`.trim(),
+        customerEmail: userDetails.email,
+        customerPhone: userDetails.phone || '',
+        customerCity: '', 
+        itineraryTitle: itineraryDetails.title,
+        travelDate: new Date(booking.travel_date).toLocaleDateString('en-IN'),
+        adults: booking.adults,
+        children: booking.kids,
+        basePrice: booking.total_price * 0.82, // roughly calculating base price without GST
+        gstAmount: booking.total_price * 0.18, // 18% GST calculation
+        totalAmount: booking.total_price
+      };
+
+      // Run generation and email sending without blocking the response
+      (async () => {
+        try {
+          console.log(`[INVOICE] Generating HTML for Booking: ${booking._id}`);
+          const html = generateInvoiceHtml(invoiceData);
+          console.log(`[INVOICE] Generating PDF for Booking: ${booking._id}`);
+          const pdfBuffer = await generatePdfBuffer(html);
+          console.log(`[INVOICE] PDF Generated. Sending Email to: ${userDetails.email}`);
+          await sendBookingConfirmationWithInvoice(userDetails.email, invoiceData.customerName, invoiceData, pdfBuffer);
+        } catch (emailErr) {
+          console.error('[INVOICE/EMAIL] Background Process Failed:', emailErr);
+        }
+      })();
+    } catch (dbErr) {
+      console.error('[INVOICE] Failed to fetch data for email:', dbErr);
+    }
 
     return res.status(200).json({
       success: true,
