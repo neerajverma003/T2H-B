@@ -219,6 +219,39 @@ export const verifyBookingPayment = async (req, res) => {
 
     await booking.save();
 
+    // -----------------------------------------------------
+    // 3. BOOKING REFERRAL BONUS (Rs. 500 to Referrer A)
+    // -----------------------------------------------------
+    try {
+      const B_user = await userModel.findById(booking.user_id);
+      if (B_user && B_user.referred_by) {
+        const previousBookings = await ItineraryBooking.countDocuments({
+          user_id: booking.user_id,
+          status: 'confirmed',
+          _id: { $ne: booking._id }
+        });
+
+        if (previousBookings === 0) {
+          const A_user = await userModel.findOne({ referral_code: B_user.referred_by });
+          if (A_user) {
+            A_user.wallet_balance = (A_user.wallet_balance || 0) + 500;
+            await A_user.save();
+
+            const referralWalletTx = new WalletTransaction({
+              user_id: A_user._id,
+              amount: 500,
+              transaction_type: 'credit',
+              description: `Referral Booking Bonus (Friend: ${B_user.firstName} ${B_user.lastName || ''})`,
+              reference_id: booking._id.toString()
+            });
+            await referralWalletTx.save();
+          }
+        }
+      }
+    } catch (refError) {
+      console.error('Referral booking reward calculation failed:', refError);
+    }
+
     // Trigger Success Email Asynchronously
     try {
       const userDetails = await userModel.findById(booking.user_id);

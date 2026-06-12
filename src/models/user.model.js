@@ -75,9 +75,36 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    referral_code: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    referred_by: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+userSchema.pre('save', async function (next) {
+  if (this.is_verified && !this.referral_code && this.firstName) {
+    let code;
+    let exists = true;
+    while (exists) {
+      const prefix = this.firstName.substring(0, 4).toUpperCase().replace(/[^A-Z]/g, '') || 'T2H';
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      code = `${prefix}${suffix}`;
+      const found = await mongoose.models.User.findOne({ referral_code: code });
+      if (!found) {
+        exists = false;
+      }
+    }
+    this.referral_code = code;
+  }
+  next();
+});
 
 const userModel = mongoose.model('User', userSchema);
 

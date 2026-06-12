@@ -1,11 +1,13 @@
 import bcrypt from 'bcrypt';
 import userModel from '../models/user.model.js';
 import itineraryModel from '../models/itinerary.model.js';
+import ItineraryBooking from '../models/itineraryBooking.model.js';
 import ItineraryLead from '../models/itineraryLead.model.js';
 import ConsultationLead from '../models/consultationLead.model.js';
 import planYourTrip from '../models/planYourTrip.model.js';
 import PlanYourJourney from '../models/planYourJourney.model.js';
 import contactModel from '../models/contact.model.js';
+import WalletTransaction from '../models/walletTransaction.model.js';
 import { generateToken } from '../utils.js';
 import { ENV } from '../config/ENV.js';
 import { sendOtpEmail } from '../utils/email.js';
@@ -97,7 +99,7 @@ export const sendOtp = async (req, res) => {
  */
 export const verifyOtp = async (req, res) => {
   try {
-    const { email,otp,password,firstName, lastName, mobile_number } = req.body;
+    const { email,otp,password,firstName, lastName, mobile_number, referred_by } = req.body;
 
     // --- Validation ---
     if (!email || !otp || !password || !firstName || !lastName || !mobile_number ) {
@@ -138,6 +140,27 @@ export const verifyOtp = async (req, res) => {
      user.otp_expiry = undefined;
      user.is_verified = true;
      user.last_login = new Date();
+
+    // --- Check for referral code ---
+    if (referred_by) {
+      const referrer = await userModel.findOne({ referral_code: referred_by.trim() });
+      if (referrer) {
+        user.referred_by = referred_by.trim();
+        
+        referrer.wallet_balance = (referrer.wallet_balance || 0) + 250;
+        await referrer.save();
+
+        const refTx = new WalletTransaction({
+          user_id: referrer._id,
+          amount: 250,
+          transaction_type: 'credit',
+          description: `Referral Signup Bonus (Friend: ${firstName.trim()} ${lastName.trim()})`,
+          reference_id: user._id.toString()
+        });
+        await refTx.save();
+      }
+    }
+
     await user.save();
 
     // --- Generate JWT Token ---
@@ -161,6 +184,7 @@ export const verifyOtp = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         mobile_number: user.mobile_number,
+        referral_code: user.referral_code,
       },
     });
   } catch (error) {
@@ -198,6 +222,8 @@ export const getMe = async (req, res) => {
         partnerName: user.partnerName || '',
         weddingDate: user.weddingDate || null,
         preferences: user.preferences || { honeymoonVibe: '', dietaryPreference: '', departureCity: '' },
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance || 0,
       },
     });
   } catch (error) {
@@ -267,6 +293,8 @@ export const login = async (req, res) => {
         partnerName: user.partnerName || '',
         weddingDate: user.weddingDate || null,
         preferences: user.preferences || { honeymoonVibe: '', dietaryPreference: '', departureCity: '' },
+        referral_code: user.referral_code,
+        wallet_balance: user.wallet_balance || 0,
       },
     });
   }catch(error){
@@ -468,5 +496,62 @@ export const getMyEnquiries = async (req, res) => {
   } catch (error) {
     console.error(`getMyEnquiries error → ${error}`);
     return res.status(500).json({ msg: 'Failed to retrieve enquiries.', success: false });
+  }
+};
+
+export const getReferrals = async (req, res) => {
+  try {
+    const user = await userModel.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, msg: 'User not found' });
+    }
+
+    if (!user.referral_code) {
+      let code;
+      let exists = true;
+      while (exists) {
+        const prefix = user.firstName.substring(0, 4).toUpperCase().replace(/[^A-Z]/g, '') || 'T2H';
+        const suffix = Math.floor(1000 + Math.random() * 9000);
+        code = `${prefix}${suffix}`;
+        const found = await userModel.findOne({ referral_code: code });
+        if (!found) {
+          exists = false;
+        }
+      }
+      user.referral_code = code;
+      await user.save();
+    }
+
+    const referees = await userModel.find({ referred_by: user.referral_code }).select('firstName lastName email createdAt');
+
+    const referralsList = await Promise.all(
+      referees.map(async (referee) => {
+        const bookingCount = await ItineraryBooking.countDocuments({
+          user_id: referee._id,
+          status: 'confirmed'
+        });
+
+        return {
+          firstName: referee.firstName,
+          lastName: referee.lastName,
+          email: referee.email,
+          joinedAt: referee.createdAt,
+          hasPurchased: bookingCount > 0
+        };
+      })
+    );
+
+    const transactions = await WalletTransaction.find({ user_id: user._id }).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      referral_code: user.referral_code,
+      wallet_balance: user.wallet_balance || 0,
+      referrals: referralsList,
+      transactions
+    });
+  } catch (error) {
+    console.error('getReferrals error:', error);
+    return res.status(500).json({ success: false, msg: 'Failed to retrieve referral dashboard data' });
   }
 };
