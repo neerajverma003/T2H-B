@@ -10,7 +10,9 @@ import contactModel from '../models/contact.model.js';
 import WalletTransaction from '../models/walletTransaction.model.js';
 import { generateToken } from '../utils.js';
 import { ENV } from '../config/ENV.js';
-import { sendOtpEmail } from '../utils/email.js';
+import { sendOtpEmail, sendReferralRewardEmail } from '../utils/email.js';
+import Notification from '../models/notification.model.js';
+import ReferralAuditLog from '../models/referralAuditLog.model.js';
 
 const IS_DEV = ENV.NODE_ENV !== 'production';
 
@@ -147,17 +149,69 @@ export const verifyOtp = async (req, res) => {
       if (referrer) {
         user.referred_by = referred_by.trim();
         
-        referrer.wallet_balance = (referrer.wallet_balance || 0) + 250;
-        await referrer.save();
-
-        const refTx = new WalletTransaction({
-          user_id: referrer._id,
-          amount: 250,
-          transaction_type: 'credit',
-          description: `Referral Signup Bonus (Friend: ${firstName.trim()} ${lastName.trim()})`,
-          reference_id: user._id.toString()
+        // 1. Velocity check (last 24 hours referrals count)
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const referralsCount = await userModel.countDocuments({
+          referred_by: referrer.referral_code,
+          is_verified: true,
+          createdAt: { $gte: oneDayAgo }
         });
-        await refTx.save();
+
+        if (referralsCount >= 30) {
+          // Auto-freeze referrer
+          referrer.is_wallet_frozen = true;
+          referrer.wallet_frozen_reason = `Auto-frozen: Exceeded velocity threshold of 30 referrals per 24 hours (Current: ${referralsCount + 1}).`;
+          await referrer.save();
+
+          const auditLog = new ReferralAuditLog({
+            referrerId: referrer._id,
+            action: 'AUTO_FREEZE',
+            details: `Wallet frozen automatically due to exceeding 30 referrals in 24 hours. Attempted signup by referee: ${email}.`,
+            referralCountIn24h: referralsCount + 1,
+            triggeredBySystem: true
+          });
+          await auditLog.save();
+
+          // Also notify referrer that their wallet was frozen
+          const freezeNotification = new Notification({
+            userId: referrer._id,
+            title: 'Wallet Frozen',
+            message: 'Your wallet has been frozen due to suspicious referral activity. Please contact support.',
+            type: 'system'
+          });
+          await freezeNotification.save();
+        } else if (!referrer.is_wallet_frozen) {
+          // If NOT frozen, award reward
+          referrer.wallet_balance = (referrer.wallet_balance || 0) + 250;
+          await referrer.save();
+
+          const refTx = new WalletTransaction({
+            user_id: referrer._id,
+            amount: 250,
+            transaction_type: 'credit',
+            description: `Referral Signup Bonus (Friend: ${firstName.trim()} ${lastName.trim()})`,
+            reference_id: user._id.toString()
+          });
+          await refTx.save();
+
+          // Create In-App Notification
+          const notif = new Notification({
+            userId: referrer._id,
+            title: 'Referral Bonus Credited! 💰',
+            message: `You earned ₹250 because your friend ${firstName.trim()} joined Trip to Honeymoon.`,
+            type: 'referral'
+          });
+          await notif.save();
+
+          // Send Email asynchronously
+          sendReferralRewardEmail(
+            referrer.email,
+            `${referrer.firstName} ${referrer.lastName}`,
+            `${firstName.trim()} ${lastName.trim()}`,
+            250,
+            'signup'
+          ).catch(err => console.error('[MAIL] Failed sending signup referral email:', err));
+        }
       }
     }
 
@@ -553,5 +607,31 @@ export const getReferrals = async (req, res) => {
   } catch (error) {
     console.error('getReferrals error:', error);
     return res.status(500).json({ success: false, msg: 'Failed to retrieve referral dashboard data' });
+  }
+};
+
+export const getNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.userId }).sort({ created_at: -1 }).limit(50);
+    return res.status(200).json({
+      success: true,
+      notifications
+    });
+  } catch (error) {
+    console.error('getNotifications error:', error);
+    return res.status(500).json({ success: false, msg: 'Failed to retrieve notifications' });
+  }
+};
+
+export const markNotificationsRead = async (req, res) => {
+  try {
+    await Notification.updateMany({ userId: req.userId, isRead: false }, { $set: { isRead: true } });
+    return res.status(200).json({
+      success: true,
+      msg: 'Notifications marked as read'
+    });
+  } catch (error) {
+    console.error('markNotificationsRead error:', error);
+    return res.status(500).json({ success: false, msg: 'Failed to mark notifications as read' });
   }
 };

@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import Razorpay from 'razorpay';
 import { ENV } from '../config/ENV.js';
 import ItineraryBooking from '../models/itineraryBooking.model.js';
@@ -9,7 +11,9 @@ import GiftCardTransaction from '../models/giftCardTransaction.model.js';
 import WalletTransaction from '../models/walletTransaction.model.js';
 import { generateInvoiceHtml } from '../utils/invoiceTemplate.js';
 import { generatePdfBuffer } from '../utils/pdfGenerator.js';
-import { sendBookingConfirmationWithInvoice } from '../utils/email.js';
+import { sendBookingConfirmationWithInvoice, sendReferralRewardEmail } from '../utils/email.js';
+import Notification from '../models/notification.model.js';
+import ReferralAuditLog from '../models/referralAuditLog.model.js';
 
 // Initialize Razorpay
 const razorpayInstance = new Razorpay({
@@ -46,6 +50,15 @@ export const createBooking = async (req, res) => {
 
     const baseTotalPrice = basePricePerPerson * (adults + (kids * 0.5)); // Example: Kids at 50%
     const totalPrice = req.body.calculated_total !== undefined ? req.body.calculated_total : baseTotalPrice;
+
+    // Verify wallet cap backend-side to prevent malicious requests
+    let validatedWalletAmountUsed = wallet_amount_used || 0;
+    if (validatedWalletAmountUsed > 0) {
+      const maxAllowed = Math.min(baseTotalPrice * 0.10, 1000);
+      if (validatedWalletAmountUsed > maxAllowed) {
+        validatedWalletAmountUsed = Math.floor(maxAllowed);
+      }
+    }
 
     // Default token amount if they choose token payment
     const tokenAmount = 5000;
@@ -89,7 +102,7 @@ export const createBooking = async (req, res) => {
       booking.notes = notes;
       booking.used_gift_card_code = used_gift_card_code || null;
       booking.voucher_amount_used = voucher_amount_used || 0;
-      booking.wallet_amount_used = wallet_amount_used || 0;
+      booking.wallet_amount_used = validatedWalletAmountUsed;
       await booking.save();
     } else {
       // Create new booking if none exists
@@ -107,7 +120,7 @@ export const createBooking = async (req, res) => {
         notes,
         used_gift_card_code: used_gift_card_code || null,
         voucher_amount_used: voucher_amount_used || 0,
-        wallet_amount_used: wallet_amount_used || 0
+        wallet_amount_used: validatedWalletAmountUsed
       });
       await booking.save();
     }
@@ -234,17 +247,67 @@ export const verifyBookingPayment = async (req, res) => {
         if (previousBookings === 0) {
           const A_user = await userModel.findOne({ referral_code: B_user.referred_by });
           if (A_user) {
-            A_user.wallet_balance = (A_user.wallet_balance || 0) + 500;
-            await A_user.save();
-
-            const referralWalletTx = new WalletTransaction({
-              user_id: A_user._id,
-              amount: 500,
-              transaction_type: 'credit',
-              description: `Referral Booking Bonus (Friend: ${B_user.firstName} ${B_user.lastName || ''})`,
-              reference_id: booking._id.toString()
+            // 1. Velocity check (last 24 hours referrals count)
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const referralsCount = await userModel.countDocuments({
+              referred_by: A_user.referral_code,
+              is_verified: true,
+              createdAt: { $gte: oneDayAgo }
             });
-            await referralWalletTx.save();
+
+            if (referralsCount >= 30) {
+              // Auto-freeze referrer
+              A_user.is_wallet_frozen = true;
+              A_user.wallet_frozen_reason = `Auto-frozen: Exceeded velocity threshold of 30 referrals per 24 hours (Current: ${referralsCount + 1}).`;
+              await A_user.save();
+
+              const auditLog = new ReferralAuditLog({
+                referrerId: A_user._id,
+                action: 'AUTO_FREEZE',
+                details: `Wallet frozen automatically due to exceeding 30 referrals in 24 hours. Triggered by booking of referee: ${B_user.email}.`,
+                referralCountIn24h: referralsCount + 1,
+                triggeredBySystem: true
+              });
+              await auditLog.save();
+
+              const freezeNotification = new Notification({
+                userId: A_user._id,
+                title: 'Wallet Frozen',
+                message: 'Your wallet has been frozen due to suspicious referral activity. Please contact support.',
+                type: 'system'
+              });
+              await freezeNotification.save();
+            } else if (!A_user.is_wallet_frozen) {
+              A_user.wallet_balance = (A_user.wallet_balance || 0) + 500;
+              await A_user.save();
+
+              const referralWalletTx = new WalletTransaction({
+                user_id: A_user._id,
+                amount: 500,
+                transaction_type: 'credit',
+                description: `Referral Booking Bonus (Friend: ${B_user.firstName} ${B_user.lastName || ''})`,
+                reference_id: booking._id.toString()
+              });
+              await referralWalletTx.save();
+
+              // Create In-App Notification
+              const notif = new Notification({
+                userId: A_user._id,
+                title: 'Referral Booking Reward! 🎉',
+                message: `You earned ₹500 because your referred friend ${B_user.firstName} booked their first tour.`,
+                type: 'referral'
+              });
+              await notif.save();
+
+              // Send Email asynchronously
+              sendReferralRewardEmail(
+                A_user.email,
+                `${A_user.firstName} ${A_user.lastName}`,
+                `${B_user.firstName} ${B_user.lastName || ''}`,
+                500,
+                'booking'
+              ).catch(err => console.error('[MAIL] Failed sending booking referral email:', err));
+            }
           }
         }
       }
@@ -257,21 +320,7 @@ export const verifyBookingPayment = async (req, res) => {
       const userDetails = await userModel.findById(booking.user_id);
       const itineraryDetails = await ItineraryMain.findById(booking.itinerary_id);
       
-      const invoiceData = {
-        invoiceNumber: `INV-T2H-${booking._id.toString().substring(0, 8).toUpperCase()}`,
-        dateOfIssue: new Date().toLocaleDateString('en-IN'),
-        customerName: `${userDetails.firstName} ${userDetails.lastName || ''}`.trim(),
-        customerEmail: userDetails.email,
-        customerPhone: userDetails.phone || '',
-        customerCity: '', 
-        itineraryTitle: itineraryDetails.title,
-        travelDate: new Date(booking.travel_date).toLocaleDateString('en-IN'),
-        adults: booking.adults,
-        children: booking.kids,
-        basePrice: booking.total_price * 0.82, // roughly calculating base price without GST
-        gstAmount: booking.total_price * 0.18, // 18% GST calculation
-        totalAmount: booking.total_price
-      };
+      const invoiceData = compileInvoiceData(booking, userDetails, itineraryDetails);
 
       // Run generation and email sending without blocking the response
       (async () => {
@@ -301,6 +350,107 @@ export const verifyBookingPayment = async (req, res) => {
   }
 };
 
+// Reusable Helper to compile booking invoice variables with fallback parsing
+const compileInvoiceData = (booking, userDetails, itineraryDetails) => {
+  // 1. Load logo base64 safely
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(process.cwd(), 'src', 'assets', 'TripLogo.png');
+    if (fs.existsSync(logoPath)) {
+      logoBase64 = fs.readFileSync(logoPath).toString('base64');
+    }
+  } catch (logoErr) {
+    console.error('[INVOICE] Failed to read logo file:', logoErr);
+  }
+
+  // 2. Parse selected addons, requests, and city from notes safely
+  let selectedAddonsList = [];
+  let specialRequestsList = [];
+  let departureCity = '';
+  let rawNote = '';
+
+  const notesStr = booking.notes || '';
+  if (notesStr) {
+    const isStandardFormat = /Addons:|Requests:|DepCity:/i.test(notesStr);
+    if (isStandardFormat) {
+      // Extract Addons
+      const addonsMatch = notesStr.match(/Addons:\s*([^.]*)/i);
+      if (addonsMatch && addonsMatch[1]) {
+        const addonIds = addonsMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        
+        const ADDONS_DATA_MAP = {
+          'candle_dinner': { title: 'Candle Light Dinner', price: 5500 },
+          'beach_dinner': { title: 'Private Beach Dinner', price: 8500 },
+          'couple_spa': { title: 'Couple Spa Therapy', price: 5000 },
+          'flower_bed': { title: 'Flower Bed Decor', price: 1500 },
+          'photoshoot': { title: 'Pro Couple Photoshoot', price: 7000 }
+        };
+
+        addonIds.forEach(id => {
+          if (ADDONS_DATA_MAP[id]) {
+            selectedAddonsList.push(ADDONS_DATA_MAP[id]);
+          }
+        });
+      }
+
+      // Extract Requests
+      const requestsMatch = notesStr.match(/Requests:\s*([^.]*)/i);
+      if (requestsMatch && requestsMatch[1]) {
+        specialRequestsList = requestsMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      // Extract DepCity
+      const depCityMatch = notesStr.match(/DepCity:\s*(.*)/i);
+      if (depCityMatch && depCityMatch[1]) {
+        departureCity = depCityMatch[1].trim();
+      }
+    } else {
+      // Non-standard format / custom legacy note fallback
+      rawNote = notesStr;
+    }
+  }
+
+  // 3. Pricing Math
+  const voucherUsed = booking.voucher_amount_used || 0;
+  const walletUsed = booking.wallet_amount_used || 0;
+  const subtotalInclusive = booking.total_price + voucherUsed + walletUsed;
+  
+  const baseValue = subtotalInclusive / 1.18;
+  const gstAmount = subtotalInclusive - baseValue;
+
+  const addonsTotal = selectedAddonsList.reduce((sum, a) => sum + a.price, 0);
+  const basePackagePrice = Math.max(0, subtotalInclusive - addonsTotal);
+
+  // Amount paid vs remaining balance
+  const amountPaid = booking.payment_type === 'token' ? 5000 : booking.total_price;
+  const balanceDue = booking.payment_type === 'token' ? Math.max(0, booking.total_price - 5000) : 0;
+
+  return {
+    invoiceNumber: `INV-T2H-${booking._id.toString().substring(0, 8).toUpperCase()}`,
+    dateOfIssue: new Date(booking.createdAt || new Date()).toLocaleDateString('en-IN'),
+    customerName: `${userDetails.firstName} ${userDetails.lastName || ''}`.trim(),
+    customerEmail: userDetails.email,
+    customerPhone: userDetails.phone || '',
+    customerCity: departureCity || userDetails.city || '', 
+    itineraryTitle: itineraryDetails.title,
+    travelDate: new Date(booking.travel_date).toLocaleDateString('en-IN'),
+    adults: booking.adults,
+    children: booking.kids,
+    basePrice: basePackagePrice,
+    gstAmount: gstAmount,
+    totalAmount: subtotalInclusive,
+    selectedAddonsList,
+    specialRequestsList,
+    usedGiftCardCode: booking.used_gift_card_code,
+    voucherAmountUsed: voucherUsed,
+    walletAmountUsed: walletUsed,
+    amountPaid,
+    balanceDue,
+    logoBase64,
+    rawNote
+  };
+};
+
 // 3. GET MY BOOKINGS (Dashboard API)
 export const getMyBookings = async (req, res) => {
   try {
@@ -312,6 +462,66 @@ export const getMyBookings = async (req, res) => {
     return res.status(200).json({ success: true, bookings });
   } catch (error) {
     console.error('getMyBookings Error:', error);
+    return res.status(500).json({ success: false, msg: 'Internal server error' });
+  }
+};
+
+// 4. DOWNLOAD BOOKING INVOICE PDF (Dynamic On-the-Fly Streaming)
+export const downloadBookingInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Find the booking
+    const booking = await ItineraryBooking.findById(id);
+    if (!booking) {
+      return res.status(404).json({ success: false, msg: 'Booking not found' });
+    }
+
+    // Check ownership or admin access
+    const isOwner = booking.user_id.toString() === req.userId;
+    const isAdmin = req.userRole === 'admin' || req.userRole === 'superadmin';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, msg: 'Forbidden: Access denied' });
+    }
+
+    // Retrieve user and itinerary details
+    const userDetails = await userModel.findById(booking.user_id);
+    const itineraryDetails = await ItineraryMain.findById(booking.itinerary_id);
+
+    if (!userDetails || !itineraryDetails) {
+      return res.status(404).json({ success: false, msg: 'Associated user or itinerary details not found' });
+    }
+
+    // Compile invoice data and HTML template
+    const invoiceData = compileInvoiceData(booking, userDetails, itineraryDetails);
+    const html = generateInvoiceHtml(invoiceData);
+
+    // Generate PDF Buffer
+    const pdfBuffer = await generatePdfBuffer(html);
+
+    // Stream PDF file response directly to browser
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=invoice_${invoiceData.invoiceNumber}.pdf`);
+    return res.end(pdfBuffer);
+
+  } catch (error) {
+    console.error('downloadBookingInvoice Error:', error);
+    return res.status(500).json({ success: false, msg: 'Internal server error', error: error.message });
+  }
+};
+
+// 5. GET ALL BOOKINGS (Admin API)
+export const getAllBookings = async (req, res) => {
+  try {
+    const bookings = await ItineraryBooking.find()
+      .populate('user_id', 'firstName lastName email phone city')
+      .populate('itinerary_id', 'title destination_images pricing')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, bookings });
+  } catch (error) {
+    console.error('getAllBookings Error:', error);
     return res.status(500).json({ success: false, msg: 'Internal server error' });
   }
 };

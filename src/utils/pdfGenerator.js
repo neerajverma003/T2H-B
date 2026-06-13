@@ -8,10 +8,11 @@ import puppeteer from 'puppeteer';
 export const generatePdfBuffer = async (htmlContent) => {
   let browser;
   try {
-    // Launch headless browser
+    // Launch headless browser using system installed Google Chrome
     browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      headless: true,
+      executablePath: '/usr/bin/google-chrome',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
 
     const page = await browser.newPage();

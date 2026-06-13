@@ -1,9 +1,11 @@
 import express from 'express';
-import { auth } from '../../middleware/auth.js';
+import { auth, authorizeAdmin } from '../../middleware/auth.js';
 import {
   createBooking,
   verifyBookingPayment,
-  getMyBookings
+  getMyBookings,
+  downloadBookingInvoice,
+  getAllBookings
 } from '../../controller/itineraryBooking.controller.js';
 
 const itineraryBookingRouter = express.Router();
@@ -12,5 +14,7 @@ const itineraryBookingRouter = express.Router();
 itineraryBookingRouter.post('/create', auth, createBooking);
 itineraryBookingRouter.post('/payment-webhook', auth, verifyBookingPayment);
 itineraryBookingRouter.get('/me', auth, getMyBookings);
+itineraryBookingRouter.get('/all', auth, authorizeAdmin, getAllBookings);
+itineraryBookingRouter.get('/:id/invoice/download', auth, downloadBookingInvoice);
 
 export default itineraryBookingRouter;

@@ -5,7 +5,10 @@ import { AdminUserVerify,
   userExistedInAdmin,
   getMe,
   logout,
-  deleteUser,} from "../../controller/admin/admin.controller.js";
+  deleteUser,
+  getRegisteredCustomers,
+  toggleCustomerWalletFreeze,
+  getReferralAuditLogs,} from "../../controller/admin/admin.controller.js";
 import {authorizeAdmin, authorizeSuperadmin} from "../../middleware/auth.js"
 import { auth } from '../../middleware/auth.js';
 
@@ -283,6 +286,12 @@ adminRoute.post('/giftcard/batch/:batchId/remind-selected', auth, authorizeSuper
 import { remindMultipleGiftCards, manualRedeemGiftCard } from '../../controller/admin/giftCard.admin.controller.js';
 adminRoute.post('/giftcard/remind-multiple', auth, authorizeSuperadmin, remindMultipleGiftCards);
 adminRoute.post('/giftcard/manual-redeem', auth, authorizeSuperadmin, manualRedeemGiftCard);
+
+// Customer & Referral Management Admin Routes
+adminRoute.get('/customers', auth, authorizeSuperadmin, getRegisteredCustomers);
+adminRoute.post('/customers/:userId/freeze', auth, authorizeSuperadmin, toggleCustomerWalletFreeze);
+adminRoute.get('/referral-audit-logs', auth, authorizeSuperadmin, getReferralAuditLogs);
+
 
 
 // ==========================================

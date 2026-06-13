@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendOtp, verifyOtp, login, getMe, logout, updateProfile, addItineraryReview, getMyReviews, getMyEnquiries, getReferrals } from '../../controller/user.controller.js';
+import { sendOtp, verifyOtp, login, getMe, logout, updateProfile, addItineraryReview, getMyReviews, getMyEnquiries, getReferrals, getNotifications, markNotificationsRead } from '../../controller/user.controller.js';
 import { generatePresignedUrl } from '../../controller/admin/s3.controller.js';
 import { auth } from '../../middleware/auth.js';
 
@@ -20,5 +20,7 @@ userRouter.post('/itinerary/:id/review', auth, addItineraryReview);
 userRouter.get('/reviews', auth, getMyReviews);
 userRouter.get('/enquiries', auth, getMyEnquiries);
 userRouter.get('/referrals', auth, getReferrals);
+userRouter.get('/notifications', auth, getNotifications);
+userRouter.post('/notifications/mark-read', auth, markNotificationsRead);
 
 export default userRouter;

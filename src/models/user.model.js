@@ -84,6 +84,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    is_wallet_frozen: {
+      type: Boolean,
+      default: false,
+    },
+    wallet_frozen_reason: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

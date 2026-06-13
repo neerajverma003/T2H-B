@@ -1,7 +1,9 @@
 import AdminModel from '../../models/adminUser.model.js';
 import bcrypt from 'bcrypt';
 import { generateToeknAdmin } from '../../utils.js';
-import UserModel from '../../models/user.model.js'; 
+import UserModel from '../../models/user.model.js';
+import ReferralAuditLog from '../../models/referralAuditLog.model.js';
+import Notification from '../../models/notification.model.js'; 
 export const AdminUserVerify = async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -182,3 +184,104 @@ export const deleteUser = async (req, res) => {
     return res.status(500).json({ msg: 'Server Error', success: false });
   }
 };
+
+export const getRegisteredCustomers = async (req, res) => {
+  try {
+    const users = await UserModel.find({}).sort({ createdAt: -1 });
+    
+    const usersList = await Promise.all(
+      users.map(async (user) => {
+        // Count how many referrals this user has made
+        const referralCount = await UserModel.countDocuments({ referred_by: user.referral_code, is_verified: true });
+        return {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          mobile_number: user.mobile_number,
+          wallet_balance: user.wallet_balance || 0,
+          referral_code: user.referral_code,
+          referred_by: user.referred_by,
+          is_wallet_frozen: user.is_wallet_frozen || false,
+          wallet_frozen_reason: user.wallet_frozen_reason || '',
+          referralCount,
+          createdAt: user.createdAt
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      msg: 'Customers fetched successfully',
+      customers: usersList
+    });
+  } catch (error) {
+    console.error('getRegisteredCustomers error:', error);
+    return res.status(500).json({ success: false, msg: 'Server error' });
+  }
+};
+
+export const toggleCustomerWalletFreeze = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { freeze, reason } = req.body;
+
+    const user = await UserModel.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, msg: 'Customer not found' });
+    }
+
+    user.is_wallet_frozen = freeze;
+    user.wallet_frozen_reason = freeze ? (reason || 'Admin manual freeze') : '';
+    await user.save();
+
+    // Log the audit event
+    const auditLog = new ReferralAuditLog({
+      referrerId: user._id,
+      action: freeze ? 'MANUAL_FREEZE' : 'MANUAL_UNFREEZE',
+      details: freeze 
+        ? `Wallet frozen manually by admin. Reason: ${reason || 'None provided'}`
+        : 'Wallet unfrozen manually by admin.',
+      referralCountIn24h: 0,
+      triggeredBySystem: false,
+      adminUser: req.username || 'Admin'
+    });
+    await auditLog.save();
+
+    // Notify the user in-app
+    const notif = new Notification({
+      userId: user._id,
+      title: freeze ? 'Wallet Frozen' : 'Wallet Unfrozen',
+      message: freeze 
+        ? `Your wallet has been frozen by administration. Reason: ${reason || 'None provided'}`
+        : 'Your wallet has been unfrozen. You can now use your travel credits again.',
+      type: 'system'
+    });
+    await notif.save();
+
+    return res.status(200).json({
+      success: true,
+      msg: `Customer wallet successfully ${freeze ? 'frozen' : 'unfrozen'}`
+    });
+  } catch (error) {
+    console.error('toggleCustomerWalletFreeze error:', error);
+    return res.status(500).json({ success: false, msg: 'Server error' });
+  }
+};
+
+export const getReferralAuditLogs = async (req, res) => {
+  try {
+    const logs = await ReferralAuditLog.find({})
+      .populate('referrerId', 'firstName lastName email')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      logs
+    });
+  } catch (error) {
+    console.error('getReferralAuditLogs error:', error);
+    return res.status(500).json({ success: false, msg: 'Server error' });
+  }
+};
+
