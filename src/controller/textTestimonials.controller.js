@@ -1,4 +1,5 @@
 import textTestimonialModel from '../models/textTestimonial.model.js';
+import userModel from '../models/user.model.js';
 import { getPresignedViewUrl } from './admin/s3.controller.js';
 
 // Helper: Convert stored S3 keys to 5-hour Presigned GET URLs for Text Testimonials
@@ -30,15 +31,31 @@ export const createTextTestimonial = async (req, res) => {
     const { name, location, rating, travelDate, destination, message, toShow } = req.body;
 
     // Now receiving S3 keys from frontend (JSON body)
-    const profileImage = req.body.profileImage_key || null;
+    let profileImage = req.body.profileImage_key || null;
     const trip_image = req.body.trip_image_keys
       ? Array.isArray(req.body.trip_image_keys)
         ? req.body.trip_image_keys
         : [req.body.trip_image_keys]
       : [];
 
+    let isVerifiedUser = false;
+    let userId = null;
+    let finalName = name;
+
+    if (req.userId) {
+      const user = await userModel.findById(req.userId);
+      if (user) {
+        isVerifiedUser = true;
+        userId = user._id;
+        finalName = `${user.firstName} ${user.lastName || ''}`.trim();
+        if (user.profilePicture) {
+          profileImage = user.profilePicture;
+        }
+      }
+    }
+
     const newTestimonial = new textTestimonialModel({
-      name,
+      name: finalName,
       location,
       rating,
       travelDate,
@@ -46,7 +63,9 @@ export const createTextTestimonial = async (req, res) => {
       profileImage,
       trip_image,
       message,
-      toShow: toShow === 'true' || toShow === true || false,
+      isVerifiedUser,
+      userId,
+      toShow: toShow !== undefined ? (toShow === 'true' || toShow === true) : true,
     });
     const savedTestimonial = await newTestimonial.save();
     res.status(201).json({ success: true, data: savedTestimonial });

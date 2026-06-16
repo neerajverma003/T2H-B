@@ -40,6 +40,27 @@ export const auth = async (req, res, next) => {
     return res.status(500).json({ msg: 'Server Error', success: false });
   }
 };
+
+export const optionalAuth = async (req, res, next) => {
+  try {
+    let token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      token = req.cookies.token || req.cookies.user_token;
+    }
+
+    if (!token) {
+      return next();
+    }
+
+    const authorized = jwt.verify(token, ENV.JWT_SECRET);
+    req.userId = authorized.id;
+    req.userRole = authorized.role || null;
+    next();
+  } catch (error) {
+    console.warn(`[OPTIONAL-AUTH] Verification failed -> ${error.message}`);
+    next();
+  }
+};
 // Flexible role-based authorization
 export const authorize = (allowedRoles) => {
   return (req, res, next) => {
@@ -48,9 +69,9 @@ export const authorize = (allowedRoles) => {
     }
 
     if (!allowedRoles.includes(req.userRole)) {
-      return res.status(403).json({ 
-        msg: `Access denied. Requires one of the following roles: ${allowedRoles.join(', ')}`, 
-        success: false 
+      return res.status(403).json({
+        msg: `Access denied. Requires one of the following roles: ${allowedRoles.join(', ')}`,
+        success: false
       });
     }
     next();

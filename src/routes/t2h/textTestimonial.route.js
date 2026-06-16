@@ -7,10 +7,12 @@ import {
   deleteTextTestimonial,
 } from '../../controller/textTestimonials.controller.js';
 
+import { optionalAuth } from '../../middleware/auth.js';
+
 const textTestimonialRouter = express.Router();
 
 // Submit new text testimonial
-textTestimonialRouter.post('/submit', createTextTestimonial);
+textTestimonialRouter.post('/submit', optionalAuth, createTextTestimonial);
 
 // Fetch only active text testimonials (PUBLIC FRONTEND)
 textTestimonialRouter.get('/', getActiveTextTestimonials);

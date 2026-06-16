@@ -41,7 +41,15 @@ const textTestimonialSchema = new mongoose.Schema(
     },
     toShow: {
       type: Boolean,
+      default: true,
+    },
+    isVerifiedUser: {
+      type: Boolean,
       default: false,
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
   },
   { timestamps: true }
