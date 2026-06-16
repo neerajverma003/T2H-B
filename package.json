@@ -10,7 +10,8 @@
     "start": "node src/index.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "seed:admin": "node src/seed.js"
+    "seed:admin": "node src/seed.js",
+    "migrate:slugs": "node migrateSlugs.js"
   },
   "keywords": [],
   "author": "",

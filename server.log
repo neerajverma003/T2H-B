@@ -1,5 +1,0 @@
-[WARN] Cloudinary not configured. Using local disk storage for uploads (uploads/).
-✅ leads.route.js loaded
-Server running on 5000
-MongoDB connected successfully ✅
-Auth middleware -> JsonWebTokenError: jwt malformed
