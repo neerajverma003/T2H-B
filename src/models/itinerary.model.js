@@ -11,6 +11,7 @@ const dayInfoSchema = new mongoose.Schema(
     weather: { type: String, trim: true },
     date: { type: String, trim: true },
     day_image: { type: String, trim: true },
+    day_images: { type: [String], default: [] },
   },
   { _id: false }
 );
